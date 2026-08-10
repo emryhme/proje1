@@ -3,9 +3,10 @@ import path from 'path';
 import fs from 'fs';
 
 /**
- * BARON'S SILLAGE SQLite Veritabanı Yöneticisi (barons.db)
+ * SQLite Veritabanı Yöneticisi (app.db)
  */
-const dbPath = path.resolve(process.cwd(), 'barons.db');
+const dbName = process.env.DB_NAME || 'app.db';
+const dbPath = path.resolve(process.cwd(), dbName);
 console.log(`[Database] 🗄️ SQLite Veritabanı Yolu: ${dbPath}`);
 
 export const db = new Database(dbPath, { verbose: undefined });

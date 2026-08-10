@@ -8,9 +8,10 @@ exports.initDatabase = initDatabase;
 const better_sqlite3_1 = __importDefault(require("better-sqlite3"));
 const path_1 = __importDefault(require("path"));
 /**
- * BARON'S SILLAGE SQLite Veritabanı Yöneticisi (barons.db)
+ * SQLite Veritabanı Yöneticisi (app.db)
  */
-const dbPath = path_1.default.resolve(process.cwd(), 'barons.db');
+const dbName = process.env.DB_NAME || 'app.db';
+const dbPath = path_1.default.resolve(process.cwd(), dbName);
 console.log(`[Database] 🗄️ SQLite Veritabanı Yolu: ${dbPath}`);
 exports.db = new better_sqlite3_1.default(dbPath, { verbose: undefined });
 // Performans Ayarları (WAL Mode & Synchronous Normal)
