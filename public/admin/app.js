@@ -2116,11 +2116,11 @@ async function handleNewProductSubmit(e) {
   const priceElem = document.getElementById('priceInput');
   const catElem = document.getElementById('categoryInput');
 
-  if (!shortCodeElem || !nameElem) return;
+  if (!codeElem || !nameElem) return;
 
-  const sc = shortCodeElem.value.toUpperCase().trim();
+  const code = codeElem.value.trim().toUpperCase();
   const size = sizeElem ? sizeElem.value.toUpperCase().trim() : 'M';
-  const code = (codeElem && codeElem.value.trim()) ? codeElem.value.trim().toUpperCase() : `${sc}-${size}`;
+  const sc = (shortCodeElem && shortCodeElem.value.trim()) ? shortCodeElem.value.trim().toUpperCase() : (code.split('-')[0] || code);
   const name = nameElem.value.trim();
   const color = colorElem ? colorElem.value.trim() : 'Standart';
   const stock = Number(stockElem?.value) || 0;

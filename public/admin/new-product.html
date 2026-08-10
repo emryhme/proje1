@@ -146,24 +146,19 @@
 
             <form id="newProductForm">
                 <div class="form-grid">
+                    <div class="form-group full-width">
+                        <label>Ürün Kodu (SKU)</label>
+                        <input type="text" id="productCode" placeholder="Örn: KGMLW-M, TSW-BLACK veya 100234" required style="background:#0f172a; font-weight:700; color:#ff9900;">
+                    </div>
+
                     <div class="form-group">
-                        <label>Kısa Kod (Örn: S)</label>
-                        <input type="text" id="shortCode" placeholder="Örn: S" required>
+                        <label>Ürün İsmi</label>
+                        <input type="text" id="productName" placeholder="Örn: Keten Gömlek" required>
                     </div>
 
                     <div class="form-group">
                         <label>Beden / Ölçü (Örn: M, L, XL, 50ml)</label>
                         <input type="text" id="sizeInput" placeholder="Örn: M" required>
-                    </div>
-
-                    <div class="form-group full-width">
-                        <label>Otomatik Ürün Kodu Önizlemesi</label>
-                        <input type="text" id="productCode" readonly style="background:#f3f4f6; font-weight:700; color:#ff9900;">
-                    </div>
-
-                    <div class="form-group">
-                        <label>Ürün İsmi</label>
-                        <input type="text" id="productName" placeholder="Örn: BARON'S Noir Perfume" required>
                     </div>
 
                     <div class="form-group">

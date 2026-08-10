@@ -211,7 +211,7 @@ export class StockService {
    * SQLite Veritabanına Yeni Ürün Ekler veya Günceller
    */
   public static async addProduct(data: {
-    shortCode: string;
+    shortCode?: string;
     productCode?: string;
     name: string;
     color?: string;
@@ -220,11 +220,13 @@ export class StockService {
     category?: string;
   }): Promise<{ success: boolean; productCode: string }> {
     try {
-      const shortCode = data.shortCode.trim().toUpperCase();
-      const size = data.size.trim().toUpperCase();
       const productCode = data.productCode && data.productCode.trim() !== '' 
         ? data.productCode.trim().toUpperCase() 
-        : `${shortCode}-${size}`;
+        : (data.shortCode ? data.shortCode.trim().toUpperCase() : 'PROD-1');
+      const shortCode = data.shortCode && data.shortCode.trim() !== '' 
+        ? data.shortCode.trim().toUpperCase() 
+        : (productCode.split('-')[0] || productCode);
+      const size = (data.size || 'STD').trim().toUpperCase();
       const name = data.name.trim();
       const color = (data.color || '').trim();
       const stock = Number(data.stock) || 0;
@@ -247,7 +249,7 @@ export class StockService {
       return { success: true, productCode };
     } catch (e: any) {
       console.error('[StockService SQLite] ❌ Ürün eklenemedi:', e.message);
-      return { success: false, productCode: data.productCode || data.shortCode };
+      return { success: false, productCode: data.productCode || data.shortCode || 'PROD-1' };
     }
   }
 
