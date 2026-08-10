@@ -61,7 +61,7 @@ export class AIService {
       });
 
       const extractionPrompt = `
-Sen BARON'S SILLAGE için Türkçe Yapay Zeka Veri Ayıklayıcısısın (AI Extractor).
+Sen DEMO STORE için Türkçe Yapay Zeka Veri Ayıklayıcısısın (AI Extractor).
 Müşterinin gönderdiği mesajdan ad-soyad, telefon, adres, ürün kodu, beden ve adet verilerini ayıkla.
 
 Müşteri Mesajı: "${userText}"
@@ -285,10 +285,10 @@ Yalnızca aşağıdaki JSON yapısını döndür (bilinmeyen alanlar için null 
             // Ödülü kullanıldı olarak işaretle
             db.prepare('UPDATE user_rewards SET is_used = 1, used_at = CURRENT_TIMESTAMP WHERE id = ?').run(userReward.id);
           } else {
-            // Standart Aktif Kampanyaları Uygula (Örn BARONS10)
+            // Standart Aktif Kampanyaları Uygula (Örn DEMO10)
             const activeCampaigns = db.prepare('SELECT * FROM campaigns WHERE active = 1').all() as any[];
             for (const c of activeCampaigns) {
-              if (c.code === 'BARONS10') {
+              if (c.code === 'DEMO10') {
                 discount += (subtotal * 0.10);
               }
             }
@@ -494,7 +494,7 @@ Stok sorgulama, sepete ekleme ve sipariş kayıt ajansın.
 
     if (!apiKey || apiKey === 'DUMMY_KEY') {
       return {
-        reply: "Merhaba! BARON'S SILLAGE müşteri temsilcisiyim. Lütfen geçerli bir OPENAI_API_KEY tanımlayınız.",
+        reply: "Merhaba! Mağaza müşteri temsilcisiyim. Lütfen geçerli bir OPENAI_API_KEY tanımlayınız.",
         tokens: { promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0 }
       };
     }
@@ -563,7 +563,7 @@ Stok sorgulama, sepete ekleme ve sipariş kayıt ajansın.
 
       const systemPrompt = new SystemMessage(`
 <görev>
-Sen BARON'S SILLAGE 7/24 Mağaza Müşteri Danışmanısın (F.R.I.D.A.Y.). Müşterilerin ürün sorularını yanıtlar, ürünleri SEPETE EKLER ve müşteri "isteklerim bu kadar / siparişi tamamla" dediğinde TOPLU SİPARİŞİ oluşturursun.
+Sen DEMO STORE 7/24 Mağaza Müşteri Danışmanısın (F.R.I.D.A.Y.). Müşterilerin ürün sorularını yanıtlar, ürünleri SEPETE EKLER ve müşteri "isteklerim bu kadar / siparişi tamamla" dediğinde TOPLU SİPARİŞİ oluşturursun.
 </görev>
 
 <KATI_GÜVENLİK_VE_SEPET_KURALLARI>

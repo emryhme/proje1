@@ -24,13 +24,15 @@ function checkAuthStatus() {
   const path = window.location.pathname;
   if (path.endsWith('login.html')) return;
 
-  const token = localStorage.getItem('barons_admin_token');
+  const token = localStorage.getItem('admin_token') || localStorage.getItem('barons_admin_token');
   if (!token) {
     window.location.href = 'login.html';
   }
 }
 
 function logoutUser() {
+  localStorage.removeItem('admin_token');
+  localStorage.removeItem('admin_user');
   localStorage.removeItem('barons_admin_token');
   localStorage.removeItem('barons_admin_user');
   showToast('👋 Çıkış yapıldı. Giriş sayfasına yönlendiriliyorsunuz...', 'info');

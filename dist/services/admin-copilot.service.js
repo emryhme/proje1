@@ -9,7 +9,7 @@ const stock_service_1 = require("./stock.service");
 const order_service_1 = require("./order.service");
 const db_1 = require("../database/db");
 /**
- * BARON'S SILLAGE - AI Admin & Copilot Management Service
+ * DEMO STORE - AI Admin & Copilot Management Service
  */
 class AdminCopilotService {
     static getApiKey() {
@@ -152,7 +152,7 @@ class AdminCopilotService {
         const tools = [stokGuncelleTool, fiyatGuncelleTool, siparisSorgulaTool, urunEkleTool, urunListeleSorgulaTool];
         const boundModel = model.bindTools(tools);
         const systemPrompt = new messages_1.SystemMessage(`
-Sen BARON'S SILLAGE Yönetici ve Mağaza Copilot Asistanısın (F.R.I.D.A.Y.).
+Sen DEMO STORE Yönetici ve Mağaza Copilot Asistanısın (F.R.I.D.A.Y.).
 Kullanıcın Sayın Tony Stark (Patron)'dır.
 
 VERİTABANI VE ARAÇ YETKİLERİN:

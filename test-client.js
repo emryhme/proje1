@@ -3,7 +3,7 @@ const http = require('http');
 
 console.log(`
 ===========================================================
-🤖 BARON'S SILLAGE CHATBOT YEREL TEST İSTEMCİSİ (CLI)
+🤖 DEMO STORE CHATBOT YEREL TEST İSTEMCİSİ (CLI)
 ===========================================================
 Çıkmak için 'exit' yazın.
 Mesajınızı yazıp ENTER'a basın.

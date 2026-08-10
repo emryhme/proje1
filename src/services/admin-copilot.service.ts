@@ -7,7 +7,7 @@ import { OrderService } from './order.service';
 import { db } from '../database/db';
 
 /**
- * BARON'S SILLAGE - AI Admin & Copilot Management Service
+ * DEMO STORE - AI Admin & Copilot Management Service
  */
 export class AdminCopilotService {
   private static getApiKey(): string {
@@ -169,7 +169,7 @@ export class AdminCopilotService {
     const boundModel = model.bindTools(tools);
 
     const systemPrompt = new SystemMessage(`
-Sen BARON'S SILLAGE Yönetici ve Mağaza Copilot Asistanısın (F.R.I.D.A.Y.).
+Sen DEMO STORE Yönetici ve Mağaza Copilot Asistanısın (F.R.I.D.A.Y.).
 Kullanıcın Sayın Tony Stark (Patron)'dır.
 
 VERİTABANI VE ARAÇ YETKİLERİN:

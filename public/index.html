@@ -737,12 +737,12 @@
 
     <div class="chat-body" id="chatDemoMessages">
       <div class="chat-msg bot">
-        👋 Merhaba! BARON'S SILLAGE müşteri temsilcisiyim. Size parfümlerimiz ve stoklarımız hakkında nasıl yardımcı olabilirim?
+        👋 Merhaba! DEMO STORE müşteri temsilcisiyim. Size ürünlerimiz ve stoklarımız hakkında nasıl yardımcı olabilirim?
       </div>
     </div>
 
     <div class="chat-footer">
-      <input type="text" id="chatDemoInput" placeholder="Örn: BARONS-01 parfüm fiyatı nedir?" onkeydown="if(event.key==='Enter') sendDemoMessage()">
+      <input type="text" id="chatDemoInput" placeholder="Örn: DEMO-01 ürün fiyatı nedir?" onkeydown="if(event.key==='Enter') sendDemoMessage()">
       <button class="btn btn-primary" style="height:36px; padding:0 14px;" onclick="sendDemoMessage()">Gönder</button>
     </div>
   </div>
@@ -872,9 +872,9 @@
         body: JSON.stringify({ senderId: 'web_landing_demo', message: text })
       });
       const data = await res.json();
-      botLoading.textContent = data.reply || 'BARON\'S SILLAGE parfümlerimiz hakkında size yardımcı olmaktan mutluluk duyarım!';
+      botLoading.textContent = data.reply || 'DEMO STORE ürünlerimiz hakkında size yardımcı olmaktan mutluluk duyarım!';
     } catch (e) {
-      botLoading.textContent = 'Stoklarımızda BARON\'S SILLAGE ürünleri mevcuttur. Dilerseniz siparişinizi alabilirim!';
+      botLoading.textContent = 'Stoklarımızda DEMO STORE ürünleri mevcuttur. Dilerseniz siparişinizi alabilirim!';
     }
     chatBody.scrollTop = chatBody.scrollHeight;
   }

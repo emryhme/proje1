@@ -237,6 +237,8 @@
     const validPasses = ['cintonik!', 'barons2026!'];
 
     if (validUsers.includes(username.toLowerCase()) && validPasses.includes(password)) {
+      localStorage.setItem('admin_token', 'session_master_' + Date.now());
+      localStorage.setItem('admin_user', JSON.stringify({ name: 'Tony Stark', title: 'Super Admin (Patron)' }));
       localStorage.setItem('barons_admin_token', 'session_master_' + Date.now());
       localStorage.setItem('barons_admin_user', JSON.stringify({ name: 'Tony Stark', title: 'Super Admin (Patron)' }));
       window.location.href = '/admin/index.html';

@@ -178,15 +178,15 @@ function seedInitialCampaigns() {
 
     insertStmt.run(
       '🚀 1500 TL Üzeri Ücretsiz Kargo!',
-      '1500 TL ve üzeri siparişlerde kargo ücreti BARON\'S SILLAGE tarafından karşılanır.',
+      '1500 TL ve üzeri siparişlerde kargo ücreti ücretsizdir.',
       'KARGO_BEDAVA',
       0, 49, 1500, 1
     );
 
     insertStmt.run(
-      '🎉 BARONS10 İndirim Kodu',
+      '🎉 DEMO10 İndirim Kodu',
       'Tüm siparişlerde %10 Hoşgeldin İndirimi.',
-      'BARONS10',
+      'DEMO10',
       10, 0, 0, 1
     );
 

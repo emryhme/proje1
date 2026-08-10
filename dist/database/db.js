@@ -188,8 +188,8 @@ function seedInitialCampaigns() {
       INSERT INTO campaigns (title, description, code, discount_percent, discount_amount, min_order_amount, active)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
-        insertStmt.run('🚀 1500 TL Üzeri Ücretsiz Kargo!', '1500 TL ve üzeri siparişlerde kargo ücreti BARON\'S SILLAGE tarafından karşılanır.', 'KARGO_BEDAVA', 0, 49, 1500, 1);
-        insertStmt.run('🎉 BARONS10 İndirim Kodu', 'Tüm siparişlerde %10 Hoşgeldin İndirimi.', 'BARONS10', 10, 0, 0, 1);
+        insertStmt.run('🚀 1500 TL Üzeri Ücretsiz Kargo!', '1500 TL ve üzeri siparişlerde kargo ücreti ücretsizdir.', 'KARGO_BEDAVA', 0, 49, 1500, 1);
+        insertStmt.run('🎉 DEMO10 İndirim Kodu', 'Tüm siparişlerde %10 Hoşgeldin İndirimi.', 'DEMO10', 10, 0, 0, 1);
         console.log('[Database] ✅ Aktif başlangıç kampanyaları yüklendi.');
     }
 }
