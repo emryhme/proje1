@@ -240,8 +240,12 @@ app.get('/api/profit/products', ProfitController.getProducts);
 app.get('/api/profit/chart', ProfitController.getChart);
 app.get('/api/profit/forecast', ProfitController.getForecast);
 
-// Demo Sipariş Tohumlama End-point'i (Tek Tıkla 5 Örnek Sipariş Oluşturur)
+// Demo Sipariş Tohumlama End-point'i (Geliştirme / Test Ortamı Korumalı)
 app.all('/api/admin/seed-demo-orders', async (req, res) => {
+  const secretKey = req.query.key || req.headers['x-admin-key'];
+  if (process.env.NODE_ENV === 'production' && secretKey !== 'iscworks-admin-seed-2026') {
+    return res.status(403).json({ success: false, error: '⚠️ Production ortamında demo seed oluşturmak için yetkili admin key gereklidir (?key=iscworks-admin-seed-2026).' });
+  }
   try {
     const stmt = db.prepare(`
       INSERT INTO orders (order_id, first_name, last_name, customer_phone, address, product_code, product_name, size, quantity, unit_price, shipping_fee, discount, total_price, unit_cost_price, total_cost, profit, status, sender_id, created_at)

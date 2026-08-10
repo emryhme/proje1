@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DEMO STORE — AI Muhasebe & Finans Yönetimi</title>
+  <title>DEMO STORE — Finans & Kâr Analizi</title>
 
   <script src="https://unpkg.com/lucide@latest"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -154,7 +154,7 @@
 
     <a href="accounting.html" class="nav-item active">
         <i data-lucide="landmark"></i>
-        AI Muhasebe & Finans
+        Finans & Kâr Analizi
     </a>
 
     <div class="section-title">AI & MAĞAZA YÖNETİMİ</div>
@@ -219,54 +219,38 @@
             </div>
 
             <div class="stat-card-custom red">
-                <div class="stat-title">💸 Toplam Giderler</div>
+                <div class="stat-title">💸 İşletme Giderleri</div>
                 <div class="stat-value" id="cardExpenses">0 TL</div>
-                <div class="stat-sub">Kira, kargo, reklam vb.</div>
-            </div>
-
-            <div class="stat-card-custom purple">
-                <div class="stat-title">📈 Net Kâr</div>
-                <div class="stat-value" id="cardNetProfit">0 TL</div>
-                <div class="stat-sub" id="cardProfitMargin">%0 Kâr Marjı</div>
+                <div class="stat-sub">Kira, Personel, Reklam vb.</div>
             </div>
 
             <div class="stat-card-custom cyan">
-                <div class="stat-title">💵 Kasadaki Nakit</div>
-                <div class="stat-value" id="cardCash">0 TL</div>
-                <div class="stat-sub">100.01 Kasa Hesabı</div>
+                <div class="stat-title">💵 Net İşletme Kârı</div>
+                <div class="stat-value" id="cardNetProfit">0 TL</div>
+                <div class="stat-sub" id="cardNetProfitMargin">Brüt Kâr - İşletme Giderleri</div>
             </div>
 
             <div class="stat-card-custom blue">
-                <div class="stat-title">🏦 Bankadaki Bakiye</div>
-                <div class="stat-value" id="cardBank">0 TL</div>
-                <div class="stat-sub">Garanti, İş, Ziraat Varlıkları</div>
-            </div>
-
-            <div class="stat-card-custom amber">
-                <div class="stat-title">🧾 Tahmini Net KDV</div>
-                <div class="stat-value" id="cardNetKDV">0 TL</div>
-                <div class="stat-sub" id="cardKDVSub">Satış KDV - İndirilecek KDV</div>
+                <div class="stat-title">📊 Potansiyel Stok Kârı</div>
+                <div class="stat-value" id="cardInventoryPotential">0 TL</div>
+                <div class="stat-sub" id="cardInventoryCostSub">Depodaki Henüz Satılmamış Kâr</div>
             </div>
         </div>
 
         <!-- BUTON AKSİYON BARI -->
         <div class="action-bar-finance">
             <button class="btn btn-primary" onclick="openModal('expenseModal')">
-                <i class="fa-solid fa-minus-circle"></i> + Gider Ekle (Expense)
+                <i class="fa-solid fa-minus-circle"></i> + İşletme Gideri Ekle
             </button>
             <button class="btn btn-secondary" onclick="openModal('incomeModal')" style="background:#10b981; color:#fff; border-color:#10b981;">
-                <i class="fa-solid fa-plus-circle"></i> + Gelir Ekle (Income)
-            </button>
-            <button class="btn btn-secondary" onclick="openModal('invoiceModal')">
-                <i class="fa-solid fa-file-invoice-dollar"></i> + Fatura Oluştur
+                <i class="fa-solid fa-plus-circle"></i> + Diğer Gelir Ekle
             </button>
         </div>
 
         <!-- SEKMELER VE TABLOLAR -->
         <div class="tabs-nav">
-            <button class="tab-btn active" onclick="switchTab('expensesTab', this)">💸 Gider Kayıtları</button>
-            <button class="tab-btn" onclick="switchTab('incomeTab', this)">💰 Gelir Kayıtları</button>
-            <button class="tab-btn" onclick="switchTab('invoicesTab', this)">🧾 Faturalar</button>
+            <button class="tab-btn active" onclick="switchTab('expensesTab', this)">💸 İşletme Giderleri</button>
+            <button class="tab-btn" onclick="switchTab('incomeTab', this)">💰 Diğer Gelirler</button>
             <button class="tab-btn" onclick="switchTab('transactionsTab', this)">⚖️ Çift Taraflı Yevmiye Fişleri</button>
             <button class="tab-btn" onclick="switchTab('pnlTab', this)">📊 Kâr / Zarar & Bilanço</button>
         </div>
