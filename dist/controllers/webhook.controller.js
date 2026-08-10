@@ -98,120 +98,156 @@ class WebhookController {
         }
     }
     /**
-     * Deterministic Payload / Interactive Action veya AI Mesaj İşleyici
+     * Deterministic Payload / Interactive Action veya AI Mesaj İşleyici (Sohbet Kilitlenmesi Önlemeli)
      */
     static async processEventOrReply(senderId, text, payload) {
-        const cleanText = stripEmojis(text);
-        const rawAction = payload || cleanText || text;
-        // 1. ACTION: ADD_TO_CART:<productCode>[:size]
-        if (rawAction.startsWith('ADD_TO_CART:')) {
-            const parts = rawAction.replace('ADD_TO_CART:', '').split(':');
-            const productCode = (parts[0] || '').trim().toUpperCase();
-            const size = parts[1] ? parts[1].trim().toUpperCase() : undefined;
-            console.log(`[InstagramMessage] Button clicked: ADD_TO_CART for ${productCode}`);
-            // Güvenlik & Doğrulama: Ürünü DB'den sorgula
-            const stockCheck = await stock_service_1.StockService.checkStock(productCode);
-            console.log(`[InstagramMessage] Product validated: ${stockCheck.exists ? 'YES' : 'NO'}`);
-            if (!stockCheck.exists) {
-                console.warn(`[InstagramMessage] Ürün veritabanında bulunamadı (${productCode})`);
-                return instagram_message_service_1.InstagramMessageService.sendText(senderId, `Üzgünüz, (${productCode}) kodlu ürün sistemimizde bulunamadı.`);
-            }
-            const prodItem = stockCheck.product || {};
-            const prodStock = prodItem.stock !== undefined ? prodItem.stock : 0;
-            if (!stockCheck.inStock || prodStock <= 0) {
-                console.warn(`[InstagramMessage] Stock check failed for ${productCode}`);
-                return instagram_message_service_1.InstagramMessageService.sendQuickReplies(senderId, `Üzgünüz, **${prodItem.name || productCode}** şu anda stokta tükenmiştir.`, [
-                    { title: 'Diğer Ürünler', payload: 'PRODUCT_LIST' },
-                    { title: 'Destek', payload: 'HUMAN_SUPPORT' }
-                ]);
-            }
-            console.log(`[InstagramMessage] Stock check passed (${prodStock} adet)`);
-            // Sepete Ekle
-            const cartRes = await cart_service_1.CartService.addItem(senderId, productCode, 1, size);
-            console.log(`[InstagramMessage] Cart updated: ${cartRes.success}`);
-            return instagram_message_service_1.InstagramMessageService.sendQuickReplies(senderId, `${cartRes.message}\n\nBaşka bir işlem yapmak ister misiniz?`, [
-                { title: 'Sepetim', payload: 'MY_CART' },
-                { title: 'Ürünler', payload: 'PRODUCT_LIST' },
-                { title: 'Destek', payload: 'HUMAN_SUPPORT' }
-            ]);
-        }
-        // 2. ACTION: PRODUCT_DETAIL:<productCode>
-        if (rawAction.startsWith('PRODUCT_DETAIL:')) {
-            const productCode = rawAction.replace('PRODUCT_DETAIL:', '').trim().toUpperCase();
-            console.log(`[InstagramMessage] Button clicked: PRODUCT_DETAIL for ${productCode}`);
-            const prod = await stock_service_1.StockService.checkStock(productCode);
-            if (!prod.exists || !prod.product) {
-                return instagram_message_service_1.InstagramMessageService.sendText(senderId, `(${productCode}) detay bilgisine ulaşılamadı.`);
-            }
-            const item = prod.product;
-            const detailText = `**ÜRÜN DETAYI:**\n\n• **Ürün Adı:** ${item.name || productCode}\n• **Ürün Kodu:** ${item.productCode}\n• **Satış Fiyatı:** ${item.price} TL\n• **Beden Options:** ${item.size || 'S, M, L, XL'}\n• **Stok Durumu:** ${prod.inStock ? `Stokta Var (${item.stock} adet)` : 'Tükendi'}`;
-            return instagram_message_service_1.InstagramMessageService.sendButtonMessage(senderId, detailText, [
-                { title: 'Sepete Ekle', payload: `ADD_TO_CART:${item.productCode || productCode}` },
-                { title: 'Tüm Ürünler', payload: 'PRODUCT_LIST' }
-            ]);
-        }
-        // 3. ACTION: PRODUCT_LIST (Ürün Kataloğunu Carousel Olarak Gönder)
-        if (rawAction === 'PRODUCT_LIST' || text.toLowerCase() === 'ürünler' || text.toLowerCase() === 'urunler') {
-            console.log(`[InstagramMessage] Sending product carousel to ${senderId}`);
-            const products = await stock_service_1.StockService.getAllProducts();
-            if (!products || products.length === 0) {
-                return instagram_message_service_1.InstagramMessageService.sendText(senderId, 'Şu an aktif ürün kataloğumuz hazırlanmaktadır.');
-            }
-            return instagram_message_service_1.InstagramMessageService.sendProductCarousel(senderId, products);
-        }
-        // 4. ACTION: MY_CART (Sepeti Göster)
-        if (rawAction === 'MY_CART' || text.toLowerCase() === 'sepetim') {
-            console.log(`[InstagramMessage] Showing cart to ${senderId}`);
-            const cart = cart_service_1.CartService.getCart(senderId);
-            if (!cart || cart.length === 0) {
-                return instagram_message_service_1.InstagramMessageService.sendQuickReplies(senderId, 'Sepetiniz şu anda boş. Hemen ürünlerimizi inceleyebilirsiniz!', [
-                    { title: 'Ürün Kataloğu', payload: 'PRODUCT_LIST' },
-                    { title: 'Destek', payload: 'HUMAN_SUPPORT' }
-                ]);
-            }
-            let total = 0;
-            const cartListStr = cart.map((item, idx) => {
-                const itemTotal = item.unitPrice * item.quantity;
-                total += itemTotal;
-                return `${idx + 1}. **${item.productName}** (${item.size} Beden)\n   ${item.quantity} Adet × ${item.unitPrice} TL = ${itemTotal} TL`;
-            }).join('\n\n');
-            const cartText = `**SEPETİNİZ:**\n\n${cartListStr}\n\n**Toplam Tutar:** ${total} TL`;
-            return instagram_message_service_1.InstagramMessageService.sendButtonMessage(senderId, cartText, [
-                { title: 'Sipariş Ver', payload: 'CHECKOUT' },
-                { title: 'Ürün Ekle', payload: 'PRODUCT_LIST' }
-            ]);
-        }
-        // 5. ACTION: MY_ORDERS (Müşterinin Siparişlerini Göster)
-        if (rawAction === 'MY_ORDERS' || text.toLowerCase() === 'siparişlerim' || text.toLowerCase() === 'siparislerim') {
-            console.log(`[InstagramMessage] Showing orders to ${senderId}`);
-            const allOrders = await order_service_1.OrderService.getOrders();
-            const userOrders = allOrders.filter(o => o.senderId === senderId);
-            if (userOrders.length === 0) {
-                return instagram_message_service_1.InstagramMessageService.sendQuickReplies(senderId, 'Henüz kayıtlı bir siparişiniz bulunmuyor.', [
+        try {
+            const cleanText = stripEmojis(text);
+            const rawAction = payload || cleanText || text;
+            const lowerText = cleanText.toLowerCase().trim();
+            const ctx = ai_service_1.AIService.getSessionContext(senderId);
+            // 1. ACTION: ADD_TO_CART:<productCode>[:size] veya "Sepete Ekle"
+            if (rawAction.startsWith('ADD_TO_CART:') || lowerText === 'sepete ekle' || lowerText === 'sepete ekle!') {
+                let productCode = '';
+                let size = undefined;
+                if (rawAction.startsWith('ADD_TO_CART:')) {
+                    const parts = rawAction.replace('ADD_TO_CART:', '').split(':');
+                    productCode = (parts[0] || '').trim().toUpperCase();
+                    size = parts[1] ? parts[1].trim().toUpperCase() : undefined;
+                }
+                // Eğer butonda kod yoksa oturumdaki son ürünü (ctx.productCode) dene
+                if (!productCode && ctx.productCode) {
+                    productCode = ctx.productCode;
+                }
+                if (!size && ctx.size) {
+                    size = ctx.size;
+                }
+                console.log(`[InstagramMessage] Button clicked: ADD_TO_CART for productCode="${productCode}", size="${size || 'otomatik'}"`);
+                if (!productCode) {
+                    return instagram_message_service_1.InstagramMessageService.sendQuickReplies(senderId, 'Lütfen sepete eklemek istediğiniz ürünün adını veya kodunu yazınız. (Örn: KUMAŞ GÖMLEK S)', [
+                        { title: 'Ürünler', payload: 'PRODUCT_LIST' },
+                        { title: 'Destek', payload: 'HUMAN_SUPPORT' }
+                    ]);
+                }
+                // Güvenlik & Doğrulama: Ürünü DB'den sorgula
+                const stockCheck = await stock_service_1.StockService.checkStock(productCode);
+                console.log(`[InstagramMessage] Product validated: ${stockCheck.exists ? 'YES' : 'NO'}`);
+                if (!stockCheck.exists) {
+                    console.warn(`[InstagramMessage] Ürün veritabanında bulunamadı (${productCode})`);
+                    return instagram_message_service_1.InstagramMessageService.sendText(senderId, `Üzgünüz, (${productCode}) kodlu ürün sistemimizde bulunamadı.`);
+                }
+                const prodItem = stockCheck.product || {};
+                const prodStock = prodItem.stock !== undefined ? prodItem.stock : 0;
+                if (!stockCheck.inStock || prodStock <= 0) {
+                    console.warn(`[InstagramMessage] Stock check failed for ${productCode}`);
+                    return instagram_message_service_1.InstagramMessageService.sendQuickReplies(senderId, `Üzgünüz, **${prodItem.name || productCode}** şu anda stokta tükenmiştir.`, [
+                        { title: 'Diğer Ürünler', payload: 'PRODUCT_LIST' },
+                        { title: 'Destek', payload: 'HUMAN_SUPPORT' }
+                    ]);
+                }
+                console.log(`[InstagramMessage] Stock check passed (${prodStock} adet)`);
+                // Sepete Ekle
+                const cartRes = await cart_service_1.CartService.addItem(senderId, productCode, 1, size);
+                console.log(`[InstagramMessage] Cart updated: ${cartRes.success}`);
+                return instagram_message_service_1.InstagramMessageService.sendQuickReplies(senderId, `${cartRes.message}\n\nBaşka bir işlem yapmak ister misiniz?`, [
+                    { title: 'Sepetim', payload: 'MY_CART' },
                     { title: 'Ürünler', payload: 'PRODUCT_LIST' },
                     { title: 'Destek', payload: 'HUMAN_SUPPORT' }
                 ]);
             }
-            const ordersStr = userOrders.slice(0, 5).map((o, idx) => `${idx + 1}. **Sipariş No:** ${o.orderId}\n   • Ürün: ${o.productName} (${o.quantity} Adet)\n   • Tutar: ${o.totalPrice} TL | Durum: ${o.status}`).join('\n\n');
-            return instagram_message_service_1.InstagramMessageService.sendQuickReplies(senderId, `**SON SİPARİŞLERİNİZ:**\n\n${ordersStr}`, [
-                { title: 'Ürünler', payload: 'PRODUCT_LIST' },
-                { title: 'Destek', payload: 'HUMAN_SUPPORT' }
-            ]);
-        }
-        // 6. ACTION: HUMAN_SUPPORT (Canlı Destek)
-        if (rawAction === 'HUMAN_SUPPORT' || text.toLowerCase().includes('canlı destek') || text.toLowerCase() === 'destek') {
-            return instagram_message_service_1.InstagramMessageService.sendText(senderId, '**Müşteri Temsilcimiz:** Temsilcimiz en kısa sürede sizinle ilgilenecektir. Lütfen sormak istediğiniz konuyu doğrudan yazabilirsiniz.');
-        }
-        // 7. DEFAULT: AI Chat Processing (F.R.I.D.A.Y.)
-        try {
-            const { reply } = await ai_service_1.AIService.processMessage(senderId, cleanText || text);
-            const sent = await facebook_service_1.FacebookService.sendMessage(senderId, reply);
-            if (!sent) {
-                console.warn(`[WebhookController] ⚠️ FacebookService mesajı gönderemedi (senderId: ${senderId}). Lütfen FB_PAGE_ACCESS_TOKEN kontrol edin.`);
+            // 2. ACTION: PRODUCT_DETAIL:<productCode>
+            if (rawAction.startsWith('PRODUCT_DETAIL:')) {
+                const productCode = rawAction.replace('PRODUCT_DETAIL:', '').trim().toUpperCase();
+                console.log(`[InstagramMessage] Button clicked: PRODUCT_DETAIL for ${productCode}`);
+                const prod = await stock_service_1.StockService.checkStock(productCode);
+                if (!prod.exists || !prod.product) {
+                    return instagram_message_service_1.InstagramMessageService.sendText(senderId, `(${productCode}) detay bilgisine ulaşılamadı.`);
+                }
+                const item = prod.product;
+                ctx.productCode = item.productCode || productCode;
+                ctx.size = item.size;
+                const detailText = `**ÜRÜN DETAYI:**\n\n• **Ürün Adı:** ${item.name || productCode}\n• **Ürün Kodu:** ${item.productCode}\n• **Satış Fiyatı:** ${item.price} TL\n• **Beden Options:** ${item.size || 'S, M, L, XL'}\n• **Stok Durumu:** ${prod.inStock ? `Stokta Var (${item.stock} adet)` : 'Tükendi'}`;
+                return instagram_message_service_1.InstagramMessageService.sendButtonMessage(senderId, detailText, [
+                    { title: 'Sepete Ekle', payload: `ADD_TO_CART:${item.productCode || productCode}` },
+                    { title: 'Tüm Ürünler', payload: 'PRODUCT_LIST' }
+                ]);
+            }
+            // 3. ACTION: PRODUCT_LIST (Ürün Kataloğunu Carousel Olarak Gönder)
+            if (rawAction === 'PRODUCT_LIST' ||
+                lowerText === 'ürünler' ||
+                lowerText === 'urunler' ||
+                lowerText.includes('katalog') ||
+                lowerText.includes('ürünleri göster')) {
+                console.log(`[InstagramMessage] Sending product carousel to ${senderId}`);
+                const products = await stock_service_1.StockService.getAllProducts();
+                if (!products || products.length === 0) {
+                    return instagram_message_service_1.InstagramMessageService.sendText(senderId, 'Şu an aktif ürün kataloğumuz hazırlanmaktadır.');
+                }
+                if (products[0] && products[0].productCode) {
+                    ctx.productCode = products[0].productCode;
+                    ctx.size = products[0].size;
+                }
+                return instagram_message_service_1.InstagramMessageService.sendProductCarousel(senderId, products);
+            }
+            // 4. ACTION: MY_CART (Sepeti Göster)
+            if (rawAction === 'MY_CART' || lowerText === 'sepetim' || lowerText === 'sepeti göster') {
+                console.log(`[InstagramMessage] Showing cart to ${senderId}`);
+                const cart = cart_service_1.CartService.getCart(senderId);
+                if (!cart || cart.length === 0) {
+                    return instagram_message_service_1.InstagramMessageService.sendQuickReplies(senderId, 'Sepetiniz şu anda boş. Hemen ürünlerimizi inceleyebilirsiniz!', [
+                        { title: 'Ürün Kataloğu', payload: 'PRODUCT_LIST' },
+                        { title: 'Destek', payload: 'HUMAN_SUPPORT' }
+                    ]);
+                }
+                let total = 0;
+                const cartListStr = cart.map((item, idx) => {
+                    const itemTotal = item.unitPrice * item.quantity;
+                    total += itemTotal;
+                    return `${idx + 1}. **${item.productName}** (${item.size} Beden)\n   ${item.quantity} Adet × ${item.unitPrice} TL = ${itemTotal} TL`;
+                }).join('\n\n');
+                const cartText = `**SEPETİNİZ:**\n\n${cartListStr}\n\n**Toplam Tutar:** ${total} TL`;
+                return instagram_message_service_1.InstagramMessageService.sendButtonMessage(senderId, cartText, [
+                    { title: 'Sipariş Ver', payload: 'CHECKOUT' },
+                    { title: 'Ürün Ekle', payload: 'PRODUCT_LIST' }
+                ]);
+            }
+            // 5. ACTION: MY_ORDERS (Müşterinin Siparişlerini Göster)
+            if (rawAction === 'MY_ORDERS' || lowerText === 'siparişlerim' || lowerText === 'siparislerim') {
+                console.log(`[InstagramMessage] Showing orders to ${senderId}`);
+                const allOrders = await order_service_1.OrderService.getOrders();
+                const userOrders = allOrders.filter(o => o.senderId === senderId);
+                if (userOrders.length === 0) {
+                    return instagram_message_service_1.InstagramMessageService.sendQuickReplies(senderId, 'Henüz kayıtlı bir siparişiniz bulunmuyor.', [
+                        { title: 'Ürünler', payload: 'PRODUCT_LIST' },
+                        { title: 'Destek', payload: 'HUMAN_SUPPORT' }
+                    ]);
+                }
+                const ordersStr = userOrders.slice(0, 5).map((o, idx) => `${idx + 1}. **Sipariş No:** ${o.orderId}\n   • Ürün: ${o.productName} (${o.quantity} Adet)\n   • Tutar: ${o.totalPrice} TL | Durum: ${o.status}`).join('\n\n');
+                return instagram_message_service_1.InstagramMessageService.sendQuickReplies(senderId, `**SON SİPARİŞLERİNİZ:**\n\n${ordersStr}`, [
+                    { title: 'Ürünler', payload: 'PRODUCT_LIST' },
+                    { title: 'Destek', payload: 'HUMAN_SUPPORT' }
+                ]);
+            }
+            // 6. ACTION: HUMAN_SUPPORT (Canlı Destek)
+            if (rawAction === 'HUMAN_SUPPORT' || lowerText.includes('canlı destek') || lowerText === 'destek') {
+                return instagram_message_service_1.InstagramMessageService.sendText(senderId, '**Müşteri Temsilcimiz:** Temsilcimiz en kısa sürede sizinle ilgilenecektir. Lütfen sormak istediğiniz konuyu doğrudan yazabilirsiniz.');
+            }
+            // 7. DEFAULT: AI Chat Processing (F.R.I.D.A.Y.)
+            try {
+                const { reply } = await ai_service_1.AIService.processMessage(senderId, cleanText || text);
+                const sent = await facebook_service_1.FacebookService.sendMessage(senderId, reply);
+                if (!sent) {
+                    console.warn(`[WebhookController] ⚠️ FacebookService mesajı gönderemedi (senderId: ${senderId}). Lütfen FB_PAGE_ACCESS_TOKEN kontrol edin.`);
+                }
+            }
+            catch (error) {
+                console.error(`[WebhookController] ❌ AI Mesaj işleme hatası (${senderId}):`, error);
+                await instagram_message_service_1.InstagramMessageService.sendMainMenu(senderId, 'Size nasıl yardımcı olabilirim? Aşağıdaki menüden seçim yapabilirsiniz.');
             }
         }
-        catch (error) {
-            console.error(`[WebhookController] ❌ AI Mesaj işleme hatası (${senderId}):`, error);
+        catch (topErr) {
+            console.error(`[WebhookController TOP LEVEL ERROR] (senderId: ${senderId}):`, topErr);
+            await instagram_message_service_1.InstagramMessageService.sendMainMenu(senderId, 'İşleminiz alınmıştır. Aşağıdaki butonlardan devam edebilirsiniz:');
         }
     }
 }
