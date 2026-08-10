@@ -9,6 +9,11 @@ const instagram_message_service_1 = require("../services/instagram-message.servi
 const cart_service_1 = require("../services/cart.service");
 const stock_service_1 = require("../services/stock.service");
 const order_service_1 = require("../services/order.service");
+function stripEmojis(str) {
+    if (!str)
+        return '';
+    return str.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
+}
 class WebhookController {
     /**
      * Facebook / Instagram Webhook Doğrulama (GET /webhook/instagram & /api/webhook/instagram)
@@ -96,7 +101,8 @@ class WebhookController {
      * Deterministic Payload / Interactive Action veya AI Mesaj İşleyici
      */
     static async processEventOrReply(senderId, text, payload) {
-        const rawAction = payload || text;
+        const cleanText = stripEmojis(text);
+        const rawAction = payload || cleanText || text;
         // 1. ACTION: ADD_TO_CART:<productCode>[:size]
         if (rawAction.startsWith('ADD_TO_CART:')) {
             const parts = rawAction.replace('ADD_TO_CART:', '').split(':');
@@ -198,7 +204,7 @@ class WebhookController {
         }
         // 7. DEFAULT: AI Chat Processing (F.R.I.D.A.Y.)
         try {
-            const { reply } = await ai_service_1.AIService.processMessage(senderId, text);
+            const { reply } = await ai_service_1.AIService.processMessage(senderId, cleanText || text);
             const sent = await facebook_service_1.FacebookService.sendMessage(senderId, reply);
             if (!sent) {
                 console.warn(`[WebhookController] ⚠️ FacebookService mesajı gönderemedi (senderId: ${senderId}). Lütfen FB_PAGE_ACCESS_TOKEN kontrol edin.`);
