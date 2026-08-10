@@ -78,6 +78,85 @@ class GoogleSheetsService {
         }
     }
     /**
+     * Akıllı Başlık Algılama (Smart Header Detection)
+     * Tablonun sütun sırası ne olursa olsun başlık isimlerine göre sütun indekslerini otomatik eşler.
+     */
+    static parseSmartStockRows(rows) {
+        if (!rows || rows.length === 0)
+            return [];
+        let codeIdx = 0;
+        let nameIdx = 1;
+        let colorIdx = 2;
+        let sizeIdx = 3;
+        let stockIdx = 4;
+        let priceIdx = 5;
+        let categoryIdx = 6;
+        let startRowIdx = 0;
+        const firstRow = rows[0] || [];
+        const normalizedHeaders = firstRow.map(h => (h ? h.toString().toLowerCase().trim() : ''));
+        const codeAliases = ['kodu', 'ürün kodu', 'urun kodu', 'code', 'sku', 'product code', 'productcode', 'kısa kodu', 'kisa kodu'];
+        const nameAliases = ['ismi', 'ürün ismi', 'urun ismi', 'ürün adı', 'urun adi', 'name', 'title', 'ürün', 'urun', 'başlık', 'baslik'];
+        const colorAliases = ['renk', 'color', 'renk/desen'];
+        const sizeAliases = ['beden', 'size', 'numara', 'ebat', 'ölçü', 'olcu'];
+        const stockAliases = ['stok', 'stok adedi', 'stok miktarı', 'stok miktari', 'stock', 'qty', 'quantity', 'adet', 'miktar'];
+        const priceAliases = ['fiyat', 'fiyatı', 'fiyati', 'satış fiyatı', 'satis fiyati', 'price', 'tutar', 'ücret', 'ucret'];
+        const categoryAliases = ['kategori', 'category', 'grup', 'tür', 'tur'];
+        const hasHeaderRow = normalizedHeaders.some(h => codeAliases.includes(h) || nameAliases.includes(h) || stockAliases.includes(h) || priceAliases.includes(h));
+        if (hasHeaderRow) {
+            startRowIdx = 1;
+            normalizedHeaders.forEach((h, idx) => {
+                if (codeAliases.includes(h))
+                    codeIdx = idx;
+                else if (nameAliases.includes(h))
+                    nameIdx = idx;
+                else if (colorAliases.includes(h))
+                    colorIdx = idx;
+                else if (sizeAliases.includes(h))
+                    sizeIdx = idx;
+                else if (stockAliases.includes(h))
+                    stockIdx = idx;
+                else if (priceAliases.includes(h))
+                    priceIdx = idx;
+                else if (categoryAliases.includes(h))
+                    categoryIdx = idx;
+            });
+        }
+        const products = [];
+        for (let i = startRowIdx; i < rows.length; i++) {
+            const row = rows[i];
+            if (!row || row.length === 0)
+                continue;
+            const rawCode = (row[codeIdx] || '').toString().trim().toUpperCase();
+            if (!rawCode)
+                continue;
+            const rawName = (row[nameIdx] || rawCode).toString().trim();
+            const rawColor = (row[colorIdx] || '').toString().trim();
+            const rawSize = (row[sizeIdx] || 'STD').toString().trim().toUpperCase();
+            const rawStock = parseInt((row[stockIdx] || '0').toString().replace(/\D/g, ''), 10) || 0;
+            const rawPrice = parseFloat((row[priceIdx] || '299').toString().replace(',', '.').replace(/[^\d.]/g, '')) || 299;
+            const rawCategory = (row[categoryIdx] || '').toString().trim();
+            let shortCode = rawCode;
+            let productCode = rawCode;
+            if (!rawCode.includes('-')) {
+                productCode = `${rawCode}-${rawSize}`;
+            }
+            else {
+                shortCode = rawCode.split('-')[0];
+            }
+            products.push({
+                shortCode,
+                productCode,
+                name: rawName,
+                color: rawColor,
+                size: rawSize,
+                stock: rawStock,
+                price: rawPrice,
+                category: rawCategory
+            });
+        }
+        return products;
+    }
+    /**
      * Google Sheets Tablosundan Tüm Sipariş Verilerini Okur (Önbellekli - Hızlı).
      */
     static async fetchOrdersSheet(forceRefresh = false) {
