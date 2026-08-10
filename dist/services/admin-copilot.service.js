@@ -86,18 +86,16 @@ class AdminCopilotService {
         // 4. Yeni Ürün Ekleme Aracı
         const urunEkleTool = new tools_1.DynamicTool({
             name: 'URUN_EKLE',
-            description: 'Yapay zeka analizli yeni ürün ekler. Parametreler: shortCode (string), productName (string), color (string), size (string), stock (number), price (number, opsiyonel), category (string, opsiyonel).',
+            description: 'Yapay zeka analizli yeni ürün ekler. Parametreler: productCode (string - Tekil Ürün Kodu/SKU), productName (string), color (string, opsiyonel), size (string, opsiyonel), stock (number), price (number, opsiyonel), category (string, opsiyonel).',
             func: async (inputStr) => {
                 try {
-                    const { shortCode, productName, color, size, stock, price, category } = JSON.parse(inputStr);
-                    const sc = (shortCode || 'KGMLW').toUpperCase().trim();
-                    const sz = (size || 'M').toUpperCase().trim();
-                    const computedProductCode = `${sc}-${sz}`;
+                    const { productCode, shortCode, productName, color, size, stock, price, category } = JSON.parse(inputStr);
+                    const computedProductCode = (productCode || shortCode || 'PROD-1').toString().trim().toUpperCase();
+                    const sz = (size || 'M').toString().trim().toUpperCase();
                     const numPrice = Number(price) || 299;
                     const res = await stock_service_1.StockService.addProduct({
-                        shortCode: sc,
                         productCode: computedProductCode,
-                        name: productName || 'BARON SILLAGE Ürün',
+                        name: productName || 'Yeni Ürün',
                         color: color || '',
                         size: sz,
                         stock: Number(stock) || 0,
@@ -105,7 +103,7 @@ class AdminCopilotService {
                     });
                     if (res.success) {
                         db_1.db.prepare('UPDATE products SET price = ? WHERE product_code = ?').run(numPrice, computedProductCode);
-                        return `✨ Yeni ürün başarıyla eklendi!\n• Kod: ${computedProductCode}\n• İsim: ${productName}\n• Beden: ${sz}\n• Stok: ${stock}\n• Fiyat: ${numPrice} TL`;
+                        return `✨ Yeni ürün başarıyla eklendi!\n• Ürün Kodu (SKU): ${computedProductCode}\n• İsim: ${productName || computedProductCode}\n• Beden: ${sz}\n• Stok: ${stock}\n• Fiyat: ${numPrice} TL`;
                     }
                     else {
                         return '❌ Ürün eklenemedi.';
@@ -164,6 +162,7 @@ Sen veritabanındaki ürünleri, stokları, fiyatları ve siparişleri Doğrudan
 - Yeni ürün eklemek için URUN_EKLE aracını kullan.
 
 ⚠️ KESİNLİKLE "ürün listenizi görüntülemek için bir araç kullanamıyorum" DEME! Senin URUN_LISTELE_SORGULA aracın var ve veritabanına %100 erişimin var.
+⚠️ KURAL: Yeni ürün ekleme veya bilgi isteme işlemlerinde KESİNLİKLE "kısa kod" isteme! Ürünlerimiz sadece tekil "Ürün Kodu (SKU)" ile tanımlanmaktadır.
 
 Görevlerin:
 1. Patron'un Türkçe doğal dille verdiği yönetim emirlerini anlayıp araçları çalıştırarak işlemi gerçekleştirmek.
