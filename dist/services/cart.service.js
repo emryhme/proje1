@@ -21,14 +21,30 @@ class CartService {
         const ctx = ai_service_1.AIService.getSessionContext(senderId);
         if (!ctx.cart)
             ctx.cart = [];
-        const targetSize = size ? size.toUpperCase().trim() : (prod.size || 'M');
-        const existingIndex = ctx.cart.findIndex((i) => i.productCode === prod.productCode && i.size === targetSize);
+        // Beden Tespiti:
+        // 1. Parametre olarak gelen beden
+        // 2. Ürünün veritabanındaki gerçek bedeni (prod.size)
+        // 3. Fallback: M
+        let targetSize = size ? size.toUpperCase().trim() : '';
+        if (!targetSize && prod.size) {
+            targetSize = prod.size.toUpperCase().trim();
+        }
+        if (!targetSize) {
+            targetSize = 'M';
+        }
+        const targetCode = prod.productCode || productCode;
+        const shortCode = prod.shortCode || targetCode.split('-')[0];
+        // Sepette aynı ürün ve aynı beden varsa adeti artır (Çift ürün oluşmasını engelle)
+        const existingIndex = ctx.cart.findIndex((i) => (i.productCode.toUpperCase() === targetCode.toUpperCase() || i.productCode.toUpperCase() === shortCode.toUpperCase()) &&
+            i.size.toUpperCase() === targetSize.toUpperCase());
         if (existingIndex >= 0) {
             ctx.cart[existingIndex].quantity += quantity;
+            ctx.cart[existingIndex].productCode = targetCode; // Kod güncelleme/normalize etme
+            ctx.cart[existingIndex].size = targetSize;
         }
         else {
             ctx.cart.push({
-                productCode: prod.productCode || productCode,
+                productCode: targetCode,
                 productName: prod.name || productCode,
                 size: targetSize,
                 quantity: quantity,
@@ -39,7 +55,7 @@ class CartService {
             success: true,
             message: `🛒 **${prod.name || productCode}** (${targetSize} Beden, ${quantity} Adet) sepetinize başarıyla eklendi!`,
             cartItem: {
-                productCode: prod.productCode || productCode,
+                productCode: targetCode,
                 productName: prod.name || productCode,
                 size: targetSize,
                 quantity: quantity,

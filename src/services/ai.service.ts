@@ -8,6 +8,7 @@ import { TelegramService } from './telegram.service';
 import { FacebookService } from './facebook.service';
 import { extractProductCode } from '../utils/regex.util';
 import { db } from '../database/db';
+import { CartService } from './cart.service';
 
 export interface CartItem {
   productCode: string;
@@ -151,46 +152,34 @@ Yalnızca aşağıdaki JSON yapısını döndür (bilinmeyen alanlar için null 
           let data: any = {};
           try { data = typeof input === 'object' ? input : JSON.parse(input); } catch { data = {}; }
 
-          const pCode = (data.productCode || ctx.productCode || 'KGMLW').toUpperCase();
-          const pSize = (data.size || ctx.size || 'M').toUpperCase();
+          const pCode = (data.productCode || ctx.productCode || '').toString().trim().toUpperCase();
+          const pSize = (data.size || ctx.size || '').toString().trim().toUpperCase();
           const pQty = Number(data.quantity) || ctx.quantity || 1;
 
-          const prod = db.prepare('SELECT * FROM products WHERE product_code = ? OR short_code = ?').get(pCode, pCode) as any;
-          const unitPrice = prod?.price || 299;
-          const productName = prod?.name || pCode;
-
-          const stockRes = await StockService.checkStock(pCode);
-          if (!stockRes.inStock) {
-            return JSON.stringify({ success: false, message: `${productName} (${pSize}) stokta tükendiği için sepete eklenemedi.` });
+          if (!pCode) {
+            return JSON.stringify({ success: false, message: 'Sepete eklemek için lütfen bir ürün kodu belirtin.' });
           }
 
-          const existingIdx = ctx.cart.findIndex(i => i.productCode === pCode && i.size === pSize);
-          if (existingIdx >= 0) {
-            ctx.cart[existingIdx].quantity += pQty;
-          } else {
-            ctx.cart.push({
-              productCode: pCode,
-              productName: productName,
-              size: pSize,
-              quantity: pQty,
-              unitPrice: unitPrice
-            });
+          const addRes = await CartService.addItem(senderId, pCode, pQty, pSize || undefined);
+          if (!addRes.success) {
+            return JSON.stringify({ success: false, message: addRes.message });
           }
 
-          const cartSubtotal = ctx.cart.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
+          const cart = CartService.getCart(senderId);
+          const cartSubtotal = cart.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
           const shippingFeeEstimate = cartSubtotal >= 1500 ? 0 : 49;
           const totalEstimate = cartSubtotal + shippingFeeEstimate;
 
           return JSON.stringify({
             success: true,
-            message: `${productName} (Beden: ${pSize}, Adet: ${pQty}) sepete eklendi!`,
-            cartItemCount: ctx.cart.length,
-            cartTotalItems: ctx.cart.reduce((sum, i) => sum + i.quantity, 0),
+            message: addRes.message,
+            cartItemCount: cart.length,
+            cartTotalItems: cart.reduce((sum, i) => sum + i.quantity, 0),
             cartSubtotal: cartSubtotal,
             shippingFeeEstimate: shippingFeeEstimate,
             totalEstimate: totalEstimate,
             priceMessage: `Ara Toplam: ${cartSubtotal.toFixed(2)} TL | Kargo: ${shippingFeeEstimate === 0 ? 'ÜCRETSİZ' : shippingFeeEstimate + ' TL'} | Tahmini Toplam: ${totalEstimate.toFixed(2)} TL`,
-            cart: ctx.cart
+            cart: cart
           });
         } catch (e: any) {
           return JSON.stringify({ error: e.message });
@@ -203,13 +192,14 @@ Yalnızca aşağıdaki JSON yapısını döndür (bilinmeyen alanlar için null 
       name: 'SEPET_GORUNTULE',
       description: 'Müşterinin sepetindeki tüm ürünleri ve ara toplamı listeler.',
       func: async () => {
-        if (!ctx.cart || ctx.cart.length === 0) {
+        const cart = CartService.getCart(senderId);
+        if (!cart || cart.length === 0) {
           return JSON.stringify({ cartEmpty: true, message: 'Sepetiniz şu an boş.' });
         }
-        const cartSubtotal = ctx.cart.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
+        const cartSubtotal = cart.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
         return JSON.stringify({
           cartEmpty: false,
-          cart: ctx.cart,
+          cart: cart,
           cartSubtotal: cartSubtotal
         });
       }
@@ -228,18 +218,14 @@ Yalnızca aşağıdaki JSON yapısını döndür (bilinmeyen alanlar için null 
           const customerPhone = data.customerPhone || ctx.customerPhone;
           const address = data.address || ctx.address;
 
-          if (!ctx.cart || ctx.cart.length === 0) {
-            const pCode = (data.productCode || ctx.productCode || 'KGMLW').toUpperCase();
-            const pSize = (data.size || ctx.size || 'M').toUpperCase();
+          const cart = CartService.getCart(senderId);
+          if (!cart || cart.length === 0) {
+            const pCode = (data.productCode || ctx.productCode || '').toString().trim().toUpperCase();
+            const pSize = (data.size || ctx.size || '').toString().trim().toUpperCase();
             const pQty = Number(data.quantity) || ctx.quantity || 1;
-            const prod = db.prepare('SELECT * FROM products WHERE product_code = ? OR short_code = ?').get(pCode, pCode) as any;
-            ctx.cart.push({
-              productCode: pCode,
-              productName: prod?.name || pCode,
-              size: pSize,
-              quantity: pQty,
-              unitPrice: prod?.price || 299
-            });
+            if (pCode) {
+              await CartService.addItem(senderId, pCode, pQty, pSize || undefined);
+            }
           }
 
           const missingFields: string[] = [];
