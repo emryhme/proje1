@@ -519,7 +519,7 @@ app.listen(env.port, () => {
   -------------------------------------------------------------
   🤖 Sistem Adı: iscworks bot
   🌐 Port: ${env.port}
-  🗄️ Database: SQLite (barons.db)
+  🗄️ Database: SQLite (${process.env.DB_NAME || 'app.db'})
   📩 n8n Cloud API: http://localhost:${env.port}/api/n8n/chat
   📊 Admin API: http://localhost:${env.port}/api/orders
   🎛️ Admin Panel: http://localhost:${env.port}/admin

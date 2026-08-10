@@ -13,7 +13,7 @@ export interface ProductStockRow {
 }
 
 /**
- * SQLite (barons.db) Destekli Ultra Hızlı Stok Yönetim Servisi
+ * SQLite (app.db) Destekli Ultra Hızlı Stok Yönetim Servisi
  */
 export class StockService {
   /**

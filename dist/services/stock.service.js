@@ -4,7 +4,7 @@ exports.StockService = void 0;
 const db_1 = require("../database/db");
 const google_sheets_service_1 = require("./google-sheets.service");
 /**
- * SQLite (barons.db) Destekli Ultra Hızlı Stok Yönetim Servisi
+ * SQLite (app.db) Destekli Ultra Hızlı Stok Yönetim Servisi
  */
 class StockService {
     /**

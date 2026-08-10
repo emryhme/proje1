@@ -33,13 +33,13 @@ export interface SavedOrder extends OrderData {
 }
 
 /**
- * SQLite (barons.db) Destekli Ultra Hızlı Sipariş Servisi
+ * SQLite (app.db) Destekli Ultra Hızlı Sipariş Servisi
  */
 export class OrderService {
   /**
    * Deterministik Temiz Sipariş Numarası Üreticisi
-   * Tekli Ürün Örn: BRN-KGMLW-712-4902
-   * Çoklu/Toplu Sipariş Örn: BRN-ORD-712-4902
+   * Tekli Ürün Örn: ORD-KGMLW-712-4902
+   * Çoklu/Toplu Sipariş Örn: ORD-MULTI-712-4902
    */
   public static generateOrderId(productCode: string, size: string, phone: string): string {
     const cleanPhone = (phone || '').trim().replace(/\D/g, '');
@@ -58,7 +58,7 @@ export class OrderService {
       baseCode = rawCode.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 10);
     }
 
-    return `BRN-${baseCode}-${lastThreePhone}-${timeStamp}`;
+    return `ORD-${baseCode}-${lastThreePhone}-${timeStamp}`;
   }
 
   /**

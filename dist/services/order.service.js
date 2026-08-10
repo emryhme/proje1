@@ -12,13 +12,13 @@ const google_sheets_service_1 = require("./google-sheets.service");
 const telegram_service_1 = require("./telegram.service");
 const facebook_service_1 = require("./facebook.service");
 /**
- * SQLite (barons.db) Destekli Ultra Hızlı Sipariş Servisi
+ * SQLite (app.db) Destekli Ultra Hızlı Sipariş Servisi
  */
 class OrderService {
     /**
      * Deterministik Temiz Sipariş Numarası Üreticisi
-     * Tekli Ürün Örn: BRN-KGMLW-712-4902
-     * Çoklu/Toplu Sipariş Örn: BRN-ORD-712-4902
+     * Tekli Ürün Örn: ORD-KGMLW-712-4902
+     * Çoklu/Toplu Sipariş Örn: ORD-MULTI-712-4902
      */
     static generateOrderId(productCode, size, phone) {
         const cleanPhone = (phone || '').trim().replace(/\D/g, '');
@@ -33,7 +33,7 @@ class OrderService {
         if (rawCode && !rawCode.includes(',') && !rawCode.includes(' ') && rawCode.length <= 15) {
             baseCode = rawCode.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 10);
         }
-        return `BRN-${baseCode}-${lastThreePhone}-${timeStamp}`;
+        return `ORD-${baseCode}-${lastThreePhone}-${timeStamp}`;
     }
     /**
      * Sipariş oluşturur, deterministik sipariş no basar, stoğu -1 eksiltir ve SQLite + Sheet'e yazar.
