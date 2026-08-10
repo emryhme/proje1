@@ -4,6 +4,8 @@ node_modules/
 service-account.json
 barons.db*
 *.db
+*.db-shm
+*.db-wal
 *.sqlite*
 debug-report-*.md
 
