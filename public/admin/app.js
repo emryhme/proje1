@@ -706,7 +706,7 @@ function renderProductsTable() {
   if (filtered.length === 0) {
     productsTableBody.innerHTML = `
       <tr>
-        <td colspan="9" class="loading-cell" style="padding: 35px 20px; text-align: center; color: #94a3b8;">
+        <td colspan="8" class="loading-cell" style="padding: 35px 20px; text-align: center; color: #94a3b8;">
           <i class="fa-solid fa-box-open" style="font-size: 24px; margin-bottom: 8px; display: block; color: #64748b;"></i>
           Mağazanızda henüz stoklu ürün bulunmuyor.<br>
           <small style="color: #64748b; font-size: 11px;">"Yeni Ürün Girişi" sayfasından veya F.R.I.D.A.Y. AI Asistanı ile mağazanıza sıfırdan ürün ekleyebilirsiniz.</small>
@@ -728,7 +728,6 @@ function renderProductsTable() {
 
     return `
       <tr>
-        <td><strong class="text-purple">${escapeHtml(p.shortCode || '-')}</strong></td>
         <td><span class="code-tag">${escapeHtml(p.productCode || '-')}</span></td>
         <td><strong>${escapeHtml(p.name || '-')}</strong></td>
         <td>${escapeHtml(p.color || '-')}</td>
