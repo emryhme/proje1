@@ -319,9 +319,15 @@ app.post('/api/n8n/chat', async (req, res) => {
         res.status(500).json({ success: false, error: err.message || 'Sunucu hatası' });
     }
 });
-// Webhook End-point'leri
+// Webhook End-point'leri (Tüm URL Varyasyonları)
 app.get('/webhook/instagram', webhook_controller_1.WebhookController.verifyWebhook);
 app.post('/webhook/instagram', webhook_controller_1.WebhookController.handleWebhook);
+app.get('/api/webhook/instagram', webhook_controller_1.WebhookController.verifyWebhook);
+app.post('/api/webhook/instagram', webhook_controller_1.WebhookController.handleWebhook);
+app.get('/webhook', webhook_controller_1.WebhookController.verifyWebhook);
+app.post('/webhook', webhook_controller_1.WebhookController.handleWebhook);
+app.get('/api/webhook', webhook_controller_1.WebhookController.verifyWebhook);
+app.post('/api/webhook', webhook_controller_1.WebhookController.handleWebhook);
 // Admin API End-point'leri (Siparişleri Görme & Stok Listesi)
 app.get('/api/orders', async (req, res) => {
     const orders = await order_service_1.OrderService.getOrders();

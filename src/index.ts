@@ -358,9 +358,15 @@ app.post('/api/n8n/chat', async (req, res) => {
   }
 });
 
-// Webhook End-point'leri
+// Webhook End-point'leri (Tüm URL Varyasyonları)
 app.get('/webhook/instagram', WebhookController.verifyWebhook);
 app.post('/webhook/instagram', WebhookController.handleWebhook);
+app.get('/api/webhook/instagram', WebhookController.verifyWebhook);
+app.post('/api/webhook/instagram', WebhookController.handleWebhook);
+app.get('/webhook', WebhookController.verifyWebhook);
+app.post('/webhook', WebhookController.handleWebhook);
+app.get('/api/webhook', WebhookController.verifyWebhook);
+app.post('/api/webhook', WebhookController.handleWebhook);
 
 // Admin API End-point'leri (Siparişleri Görme & Stok Listesi)
 app.get('/api/orders', async (req, res) => {
