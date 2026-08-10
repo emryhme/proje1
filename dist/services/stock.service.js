@@ -80,10 +80,14 @@ class StockService {
             exists: true,
             inStock: match.stock > 0,
             product: {
+                shortCode: match.shortCode,
                 productCode: match.productCode,
-                name: `${match.name} (${match.size})`,
+                name: match.name,
+                color: match.color,
+                size: match.size,
+                price: match.price,
                 stock: match.stock,
-                size: match.size
+                category: match.category
             }
         };
     }
