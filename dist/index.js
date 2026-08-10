@@ -203,6 +203,12 @@ app.get('/api/accounting/invoices', accounting_controller_1.AccountingController
 app.post('/api/accounting/invoices', accounting_controller_1.AccountingController.createInvoice);
 app.post('/api/accounting/payments', accounting_controller_1.AccountingController.recordPayment);
 app.get('/api/accounting/transactions', accounting_controller_1.AccountingController.getTransactions);
+const profit_controller_1 = require("./controllers/profit.controller");
+// Ürün Maliyeti, Satış ve Gerçek Kâr Analizi API End-point'leri
+app.get('/api/profit/summary', profit_controller_1.ProfitController.getSummary);
+app.get('/api/profit/products', profit_controller_1.ProfitController.getProducts);
+app.get('/api/profit/chart', profit_controller_1.ProfitController.getChart);
+app.get('/api/profit/forecast', profit_controller_1.ProfitController.getForecast);
 // Admin Copilot Chat Endpoint
 app.post('/api/ai/admin-copilot', async (req, res) => {
     try {

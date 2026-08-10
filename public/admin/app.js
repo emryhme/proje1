@@ -2112,6 +2112,7 @@ async function handleNewProductSubmit(e) {
   const nameElem = document.getElementById('productName');
   const colorElem = document.getElementById('colorInput');
   const stockElem = document.getElementById('stockInput');
+  const costPriceElem = document.getElementById('costPriceInput');
   const priceElem = document.getElementById('priceInput');
   const catElem = document.getElementById('categoryInput');
 
@@ -2123,6 +2124,7 @@ async function handleNewProductSubmit(e) {
   const name = nameElem.value.trim();
   const color = colorElem ? colorElem.value.trim() : 'Standart';
   const stock = Number(stockElem?.value) || 0;
+  const costPrice = Number(costPriceElem?.value) || 0;
   const price = Number(priceElem?.value) || 299;
   const category = catElem ? catElem.value.trim() : 'Genel';
   const storeName = getActiveStoreName();
@@ -2135,6 +2137,7 @@ async function handleNewProductSubmit(e) {
     size: size,
     stock: stock,
     price: price,
+    costPrice: costPrice,
     category: category,
     storeName: storeName
   };

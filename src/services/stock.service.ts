@@ -216,37 +216,44 @@ export class StockService {
     name: string;
     color?: string;
     size: string;
+    price?: number;
+    costPrice?: number;
     stock: number;
     category?: string;
   }): Promise<{ success: boolean; productCode: string }> {
     try {
-      const productCode = data.productCode && data.productCode.trim() !== '' 
-        ? data.productCode.trim().toUpperCase() 
-        : (data.shortCode ? data.shortCode.trim().toUpperCase() : 'PROD-1');
-      const shortCode = data.shortCode && data.shortCode.trim() !== '' 
-        ? data.shortCode.trim().toUpperCase() 
-        : (productCode.split('-')[0] || productCode);
-      const size = (data.size || 'STD').trim().toUpperCase();
-      const name = data.name.trim();
-      const color = (data.color || '').trim();
-      const stock = Number(data.stock) || 0;
-      const category = (data.category || '').trim();
+      const computedCode = data.productCode || data.shortCode || 'SKU-NEW';
+      const shortCode = data.shortCode || computedCode.split('-')[0] || computedCode;
+      const numPrice = Number(data.price) || 299.0;
+      const numCostPrice = Number(data.costPrice) || 0.0;
 
       const stmt = db.prepare(`
-        INSERT INTO products (short_code, product_code, name, color, size, stock, category, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO products (short_code, product_code, name, color, size, price, cost_price, stock, category, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(product_code) DO UPDATE SET
           name = excluded.name,
           color = excluded.color,
           size = excluded.size,
+          price = excluded.price,
+          cost_price = excluded.cost_price,
           stock = excluded.stock,
           category = excluded.category,
           updated_at = CURRENT_TIMESTAMP
       `);
 
-      stmt.run(shortCode, productCode, name, color, size, stock, category);
-      console.log(`[StockService SQLite] ✅ Ürün eklendi/güncellendi: ${productCode}`);
-      return { success: true, productCode };
+      stmt.run(
+        shortCode,
+        computedCode,
+        data.name,
+        data.color || '',
+        data.size,
+        numPrice,
+        numCostPrice,
+        data.stock,
+        data.category || ''
+      );
+      console.log(`[StockService SQLite] ✅ Ürün eklendi/güncellendi: ${computedCode}`);
+      return { success: true, productCode: computedCode };
     } catch (e: any) {
       console.error('[StockService SQLite] ❌ Ürün eklenemedi:', e.message);
       return { success: false, productCode: data.productCode || data.shortCode || 'PROD-1' };

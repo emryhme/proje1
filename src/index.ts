@@ -228,6 +228,14 @@ app.post('/api/accounting/invoices', AccountingController.createInvoice);
 app.post('/api/accounting/payments', AccountingController.recordPayment);
 app.get('/api/accounting/transactions', AccountingController.getTransactions);
 
+import { ProfitController } from './controllers/profit.controller';
+
+// Ürün Maliyeti, Satış ve Gerçek Kâr Analizi API End-point'leri
+app.get('/api/profit/summary', ProfitController.getSummary);
+app.get('/api/profit/products', ProfitController.getProducts);
+app.get('/api/profit/chart', ProfitController.getChart);
+app.get('/api/profit/forecast', ProfitController.getForecast);
+
 // Admin Copilot Chat Endpoint
 app.post('/api/ai/admin-copilot', async (req, res) => {
   try {

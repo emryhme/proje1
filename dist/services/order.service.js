@@ -52,12 +52,23 @@ class OrderService {
         const shippingFee = data.shippingFee || 0;
         const discount = data.discount || 0;
         const totalPrice = data.totalPrice || 0;
+        // Ürünün mevcut geliş fiyatını (cost_price) çek ve maliyet snapshot'ı oluştur
+        let unitCostPrice = 0;
+        try {
+            const prod = db_1.db.prepare('SELECT cost_price FROM products WHERE product_code = ?').get(data.productCode);
+            if (prod && prod.cost_price !== undefined) {
+                unitCostPrice = Number(prod.cost_price) || 0;
+            }
+        }
+        catch (e) { }
+        const totalCost = unitCostPrice * (data.quantity || 1);
+        const profit = totalPrice - totalCost;
         try {
             const stmt = db_1.db.prepare(`
-        INSERT INTO orders (order_id, first_name, last_name, customer_phone, address, product_code, product_name, size, quantity, unit_price, shipping_fee, discount, total_price, status, sender_id, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO orders (order_id, first_name, last_name, customer_phone, address, product_code, product_name, size, quantity, unit_price, shipping_fee, discount, total_price, unit_cost_price, total_cost, profit, status, sender_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-            stmt.run(orderId, firstName, lastName, data.customerPhone, data.address, data.productCode, data.productName || data.productCode, data.size, data.quantity, unitPrice, shippingFee, discount, totalPrice, status, senderId, createdAt);
+            stmt.run(orderId, firstName, lastName, data.customerPhone, data.address, data.productCode, data.productName || data.productCode, data.size, data.quantity, unitPrice, shippingFee, discount, totalPrice, unitCostPrice, totalCost, profit, status, senderId, createdAt);
             console.log(`[OrderService SQLite] 🛍️ Sipariş Veritabanına Kaydedildi: ${orderId} (senderId: ${senderId})`);
             // Google Sheets 'SİPARİŞLER' Tablosuna Yaz
             const rowValues = [firstName, lastName, data.customerPhone, data.address, data.quantity, data.productCode, createdAt, orderId, status, senderId];

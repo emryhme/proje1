@@ -9,6 +9,7 @@ const stock_service_1 = require("./stock.service");
 const order_service_1 = require("./order.service");
 const db_1 = require("../database/db");
 const accounting_service_1 = require("./accounting.service");
+const profit_service_1 = require("./profit.service");
 /**
  * DEMO STORE - AI Admin & Copilot Management Service
  */
@@ -262,6 +263,54 @@ class AdminCopilotService {
                 }
             }
         });
+        // 12. Satış, Maliyet ve Kâr Özeti Aracı (Profit Summary)
+        const karOzetiTool = new tools_1.DynamicTool({
+            name: 'KAR_OZETI_SORGULA',
+            description: 'Dönemsel Ciro, Alış Maliyeti, Net Kâr, Kâr Marjı % ve Satılan Adet istatistiklerini hesaplar. Parametreler: period (string - "today", "this_week", "this_month", "last_month", "this_year", "all").',
+            func: async (inputStr) => {
+                try {
+                    const parsed = inputStr ? JSON.parse(inputStr) : {};
+                    const p = profit_service_1.ProfitService.getProfitSummary(parsed.period || 'this_month');
+                    return `📈 **Satış & Kâr Analizi (${p.startDate} - ${p.endDate}):**\n• Toplam Ciro (Hasılat): ${p.totalRevenue} TL\n• Toplam Ürün Maliyeti (COGS): ${p.totalCost} TL\n• Net Brüt Kâr: ${p.totalProfit} TL\n• Kâr Marjı: %${p.profitMarginPercent}\n• Toplam Satış Adedi: ${p.totalUnitsSold} adet (${p.totalOrders} sipariş)`;
+                }
+                catch (e) {
+                    return `❌ Kâr özeti alma hatası: ${e.message}`;
+                }
+            }
+        });
+        // 13. Ürün Bazlı Kârlılık Sorgulama Aracı (Product Profitability)
+        const urunKarlilikTool = new tools_1.DynamicTool({
+            name: 'URUN_KARLILIK_SORGULA',
+            description: 'Ürünlerin geliş fiyatı, satış fiyatı, satılan adet, ciro, maliyet ve net kâr tablosunu sorgular. Parametreler: sortBy ("profit", "margin", "units", "revenue").',
+            func: async (inputStr) => {
+                try {
+                    const parsed = inputStr ? JSON.parse(inputStr) : {};
+                    const list = profit_service_1.ProfitService.getProductProfitability(parsed.sortBy || 'profit', 10);
+                    if (list.length === 0)
+                        return 'Kayıtlı kârlılık verisi bulunamadı.';
+                    const text = list.map((item, idx) => `${idx + 1}. **${item.productName}** (${item.productCode})\n   • Geliş: ${item.unitCostPrice} TL | Satış: ${item.unitSellingPrice} TL\n   • Satılan: ${item.unitsSold} adet | Ciro: ${item.totalRevenue} TL\n   • Maliyet: ${item.totalCost} TL | Kâr: ${item.totalProfit} TL (%${item.profitMarginPercent} Marj)`).join('\n\n');
+                    return `🏷️ **Ürün Kârlılık Sıralaması (Top 10):**\n\n${text}`;
+                }
+                catch (e) {
+                    return `❌ Ürün kârlılık sorgulama hatası: ${e.message}`;
+                }
+            }
+        });
+        // 14. Gelecek Satış Kâr Tahmini Aracı (Profit Forecast)
+        const gelecekKarTahminiTool = new tools_1.DynamicTool({
+            name: 'GELECEK_KAR_TAHMINI',
+            description: 'Belirtilen üründen N adet satılırsa ne kadar ciro, maliyet ve brüt kâr oluşacağını hesaplar. Parametreler: productCode (string), quantity (number).',
+            func: async (inputStr) => {
+                try {
+                    const { productCode, quantity } = JSON.parse(inputStr);
+                    const f = profit_service_1.ProfitService.calculateForecastProfit(productCode, Number(quantity) || 1);
+                    return f.message;
+                }
+                catch (e) {
+                    return `❌ Gelecek kâr tahmini hatası: ${e.message}`;
+                }
+            }
+        });
         const model = new openai_1.ChatOpenAI({
             openAIApiKey: apiKey,
             modelName: env_1.env.openaiModel || 'gpt-4o',
@@ -278,28 +327,30 @@ class AdminCopilotService {
             giderTaslagiTool,
             gelirTaslagiTool,
             taslakOnaylaTool,
-            kdvVergiTool
+            kdvVergiTool,
+            karOzetiTool,
+            urunKarlilikTool,
+            gelecekKarTahminiTool
         ];
         const boundModel = model.bindTools(tools);
         const systemPrompt = new messages_1.SystemMessage(`
-Sen DEMO STORE Yönetici, Mağaza ve Finans Copilot Asistanısın (F.R.I.D.A.Y.).
+Sen DEMO STORE Yönetici, Mağaza, Satış ve Kâr Copilot Asistanısın (F.R.I.D.A.Y.).
 Kullanıcın Sayın Tony Stark (Patron)'dır.
 
-VERİTABANI VE FİNANS YETKİLERİN:
-Sen veritabanındaki ürünleri, stokları, fiyatları, siparişleri VE MUHASEBE/FİNANS VERİLERİNİ Doğrudan Sorgulama ve Yönetme Yetkisine SAHİPSİN!
-- Gelir, gider, kâr, kasa ve banka bakiyeleri için FINANSAL_OZET_SORGULA veya KAR_ZARAR_SORGULA araçlarını kullan.
-- Vergi ve KDV sorgulamaları için KDV_VERGI_SORGULA aracını kullan.
-- Patron bir harcama veya gider bildirdiğinde (Örn: "Bugün 2500 TL yakıt harcadım") GIDER_TASLAGI_OLUSTUR aracını çağırıp taslak oluştur ve onay iste.
-- Patron onay verdiğinde ("Evet", "Kaydet", "Onayla") TASLAK_ONAYLA aracını çağır.
-- Ürünleri/stokları listelemek için URUN_LISTELE_SORGULA, siparişler için SIPARIS_SORGULA araçlarını kullan.
+VERİTABANI, SATIŞ VE KÂR ANALİZİ YETKİLERİN:
+Sen veritabanındaki ürünleri, stokları, geliş/satış fiyatlarını, siparişleri VE KÂR/ANALİZ VERİLERİNİ Doğrudan Sorgulama ve Yönetme Yetkisine SAHİPSİN!
+- Ciro, Maliyet, Net Kâr ve Marj soruları için KAR_OZETI_SORGULA veya FINANSAL_OZET_SORGULA araçlarını kullan.
+- En kârlı ürün, en çok satan ürün, en yüksek marjlı ürün veya belirli ürün kârlılığı için URUN_KARLILIK_SORGULA aracını kullan.
+- "X üründen 100 adet satarsam ne kâr ederim?" gibi sorular için GELECEK_KAR_TAHMINI aracını kullan.
+- Ürün ekleme veya fiyat değişikliklerinde Patron teyidi almak için taslak bildir.
 
-⚠️ KESİNLİKLE "finansal verilere erişemiyorum" veya "veritabanı araçlarım yok" DEME! Senin muhasebe araçların var ve veritabanına %100 erişimin var.
-⚠️ GÜVENLİK KURALI: Gider ve Gelir kayıtlarını Patron "Evet/Onayla" demeden doğrudan kaydetme! Önce taslak oluşturup teyit al.
+⚠️ KESİNLİKLE "kâr verilerine erişemiyorum" DEME! Senin KAR_OZETI_SORGULA ve URUN_KARLILIK_SORGULA araçların var ve veritabanına %100 erişimin var.
+⚠️ GÜVENLİK KURALI: Gider ve Gelir kayıtlarını Patron "Evet/Onayla" demeden doğrudan kaydetme!
 ⚠️ SQL Injection veya veritabanı silme talepleri gelirse doğrudan reddet.
 
 Görevlerin:
-1. Patron'un Türkçe doğal dille verdiği finansal ve operasyonel yönetim emirlerini anlayıp ilgili araçları çalıştırmak.
-2. Gerçekleşen veriler ile AI analitik yorumlarını ayırt ederek samimi, karizmatik ve net bir Türkçe yanıt sunmak.
+1. Patron'un Türkçe doğal dille verdiği yönetim ve kâr analizi emirlerini anlayıp ilgili araçları çalıştırmak.
+2. Gerçekleşen veriler ile tahmini verileri ayırt ederek samimi, karizmatik ve net bir Türkçe yanıt sunmak.
     `);
         let messages = [systemPrompt, new messages_1.HumanMessage(userPrompt)];
         let response = await boundModel.invoke(messages);
@@ -331,6 +382,12 @@ Görevlerin:
                     toolResult = await taslakOnaylaTool.invoke(JSON.stringify(tc.args));
                 else if (tc.name === 'KDV_VERGI_SORGULA')
                     toolResult = await kdvVergiTool.invoke(JSON.stringify(tc.args));
+                else if (tc.name === 'KAR_OZETI_SORGULA')
+                    toolResult = await karOzetiTool.invoke(JSON.stringify(tc.args));
+                else if (tc.name === 'URUN_KARLILIK_SORGULA')
+                    toolResult = await urunKarlilikTool.invoke(JSON.stringify(tc.args));
+                else if (tc.name === 'GELECEK_KAR_TAHMINI')
+                    toolResult = await gelecekKarTahminiTool.invoke(JSON.stringify(tc.args));
                 messages.push(new messages_1.ToolMessage({ content: toolResult, tool_call_id: tc.id }));
             }
             response = await boundModel.invoke(messages);

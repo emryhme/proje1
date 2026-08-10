@@ -236,6 +236,9 @@ export function initDatabase() {
   try { db.exec(`ALTER TABLE orders ADD COLUMN shipping_fee REAL NOT NULL DEFAULT 0;`); } catch (e) {}
   try { db.exec(`ALTER TABLE orders ADD COLUMN discount REAL NOT NULL DEFAULT 0;`); } catch (e) {}
   try { db.exec(`ALTER TABLE orders ADD COLUMN total_price REAL NOT NULL DEFAULT 0;`); } catch (e) {}
+  try { db.exec(`ALTER TABLE orders ADD COLUMN unit_cost_price REAL NOT NULL DEFAULT 0.00;`); } catch (e) {}
+  try { db.exec(`ALTER TABLE orders ADD COLUMN total_cost REAL NOT NULL DEFAULT 0.00;`); } catch (e) {}
+  try { db.exec(`ALTER TABLE orders ADD COLUMN profit REAL NOT NULL DEFAULT 0.00;`); } catch (e) {}
   try { db.exec(`ALTER TABLE orders ADD COLUMN sender_id TEXT DEFAULT '';`); } catch (e) {}
   try { db.exec(`ALTER TABLE campaigns ADD COLUMN start_date TEXT DEFAULT NULL;`); } catch (e) {}
   try { db.exec(`ALTER TABLE campaigns ADD COLUMN end_date TEXT DEFAULT NULL;`); } catch (e) {}
@@ -247,6 +250,7 @@ export function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_orders_id ON orders(order_id);
     CREATE INDEX IF NOT EXISTS idx_orders_phone ON orders(customer_phone);
     CREATE INDEX IF NOT EXISTS idx_orders_sender ON orders(sender_id);
+    CREATE INDEX IF NOT EXISTS idx_orders_status_date ON orders(status, created_at);
     CREATE INDEX IF NOT EXISTS idx_campaigns_active ON campaigns(active);
     CREATE INDEX IF NOT EXISTS idx_rewards_sender ON user_rewards(sender_id);
     CREATE INDEX IF NOT EXISTS idx_acc_accounts_code ON accounting_accounts(code);
