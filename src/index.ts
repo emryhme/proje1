@@ -412,61 +412,6 @@ app.post('/api/products', async (req, res) => {
   }
 });
 
-// Toplu Ürün İçe Aktarma / Güncelleme (Akıllı Google Sheet & CSV Import)
-app.post('/api/products/batch', async (req, res) => {
-  try {
-    const { products } = req.body;
-    if (!Array.isArray(products) || products.length === 0) {
-      return res.status(400).json({ success: false, error: 'En az bir adet geçerli ürün gönderilmelidir.' });
-    }
-
-    let successCount = 0;
-    const stmt = db.prepare(`
-      INSERT INTO products (short_code, product_code, name, color, size, price, cost_price, stock, category, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(product_code) DO UPDATE SET
-        name = excluded.name,
-        color = excluded.color,
-        size = excluded.size,
-        price = excluded.price,
-        cost_price = excluded.cost_price,
-        stock = excluded.stock,
-        category = excluded.category,
-        updated_at = CURRENT_TIMESTAMP
-    `);
-
-    const transaction = db.transaction((items: any[]) => {
-      for (const item of items) {
-        const computedCode = (item.productCode || item.code || `${item.shortCode || 'STK'}-${item.size || 'M'}`).toUpperCase();
-        const shortCode = (item.shortCode || computedCode.split('-')[0] || computedCode).toUpperCase();
-        const name = item.name || item.productName || 'İsimsiz Ürün';
-        const color = item.color || 'Standart';
-        const size = String(item.size || 'M').toUpperCase();
-        const price = Number(item.price) || 299.0;
-        const costPrice = Number(item.costPrice) || 0.0;
-        const stock = Number(item.stock) || 0;
-        const category = item.category || 'Genel';
-
-        stmt.run(shortCode, computedCode, name, color, size, price, costPrice, stock, category);
-        successCount++;
-      }
-    });
-
-    transaction(products);
-
-    console.log(`[StockService SQLite] ✅ ${successCount} adet ürün veritabanına aktarıldı/güncellendi.`);
-
-    res.json({
-      success: true,
-      message: `🎉 ${successCount} adet ürün veritabanınıza başarıyla yüklendi!`,
-      importedCount: successCount
-    });
-  } catch (err: any) {
-    console.error('[API /api/products/batch Error]:', err);
-    res.status(500).json({ success: false, error: err.message || 'Toplu ürün yükleme hatası' });
-  }
-});
-
 // Ürün Fiyatı Güncelleme (SQLite & Admin Panel)
 app.post('/api/products/price', (req, res) => {
   try {

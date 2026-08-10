@@ -7,16 +7,70 @@ exports.db = void 0;
 exports.initDatabase = initDatabase;
 const better_sqlite3_1 = __importDefault(require("better-sqlite3"));
 const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
 /**
  * SQLite Veritabanı Yöneticisi (app.db)
  */
 const dbName = process.env.DB_NAME || 'app.db';
-const dbPath = path_1.default.resolve(process.cwd(), dbName);
+const projectRoot = path_1.default.resolve(__dirname, '../../');
+const cwdDir = process.cwd();
+const candidatePaths = [
+    path_1.default.resolve(projectRoot, dbName),
+    path_1.default.resolve(cwdDir, dbName),
+    path_1.default.resolve(projectRoot, 'app.db'),
+    path_1.default.resolve(cwdDir, 'app.db'),
+    path_1.default.resolve(projectRoot, 'barons.db'),
+    path_1.default.resolve(cwdDir, 'barons.db')
+];
+let dbPath = candidatePaths.find(p => fs_1.default.existsSync(p)) || path_1.default.resolve(cwdDir, 'app.db');
 console.log(`[Database] 🗄️ SQLite Veritabanı Yolu: ${dbPath}`);
 exports.db = new better_sqlite3_1.default(dbPath, { verbose: undefined });
 // Performans Ayarları (WAL Mode & Synchronous Normal)
 exports.db.pragma('journal_mode = WAL');
 exports.db.pragma('synchronous = NORMAL');
+/**
+ * Otomatik Veri Kurtarma ve Birleştirme (Data Recovery Scan)
+ */
+function recoverLegacyData() {
+    try {
+        const backupPaths = [
+            path_1.default.resolve(projectRoot, 'barons.db'),
+            path_1.default.resolve(cwdDir, 'barons.db')
+        ].filter(p => fs_1.default.existsSync(p) && p !== dbPath);
+        for (const bPath of backupPaths) {
+            console.log(`[Database Recovery] 🛠️ Eski veritabanı tespit edildi: ${bPath}. Veriler aktarılıyor...`);
+            const oldDb = new better_sqlite3_1.default(bPath, { readonly: true });
+            // 1. Ürünleri Kurtar
+            try {
+                const oldProducts = oldDb.prepare('SELECT * FROM products').all();
+                const insertProd = exports.db.prepare(`
+          INSERT OR IGNORE INTO products (short_code, product_code, name, color, size, price, cost_price, stock, category, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+                oldProducts.forEach(p => {
+                    insertProd.run(p.short_code || 'STK', p.product_code, p.name, p.color || '', p.size || 'M', p.price || 299, p.cost_price || 150, p.stock || 0, p.category || '', p.created_at || new Date().toISOString());
+                });
+            }
+            catch (e) { }
+            // 2. Siparişleri Kurtar
+            try {
+                const oldOrders = oldDb.prepare('SELECT * FROM orders').all();
+                const insertOrd = exports.db.prepare(`
+          INSERT OR IGNORE INTO orders (order_id, first_name, last_name, customer_phone, address, product_code, product_name, size, quantity, unit_price, shipping_fee, discount, total_price, unit_cost_price, total_cost, profit, status, sender_id, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+                oldOrders.forEach(o => {
+                    insertOrd.run(o.order_id, o.first_name || '', o.last_name || '', o.customer_phone || '', o.address || '', o.product_code || '', o.product_name || '', o.size || 'M', o.quantity || 1, o.unit_price || 0, o.shipping_fee || 0, o.discount || 0, o.total_price || 0, o.unit_cost_price || 0, o.total_cost || 0, o.profit || 0, o.status || 'OK', o.sender_id || '', o.created_at || new Date().toISOString());
+                });
+            }
+            catch (e) { }
+            oldDb.close();
+        }
+    }
+    catch (err) {
+        console.warn('[Database Recovery Warning]:', err.message);
+    }
+}
 /**
  * Tabloları Oluşturur (Migrations)
  */
@@ -299,6 +353,7 @@ function initDatabase() {
     seedInitialSettings();
     seedInitialCampaigns();
     seedInitialAccountingAccounts();
+    recoverLegacyData();
 }
 /**
   * Varsayılan Hesap Planını Yükler (Chart of Accounts)

@@ -1978,52 +1978,16 @@ async function importFromCustomGoogleSheet() {
     sheetId = match[1];
   }
 
-// Smart CSV Line Parser
-function parseCSVLine(line) {
-  const result = [];
-  let current = '';
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    if (char === '"') {
-      inQuotes = !inQuotes;
-    } else if (char === ',' && !inQuotes) {
-      result.push(current.replace(/^"|"$/g, '').trim());
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-  result.push(current.replace(/^"|"$/g, '').trim());
-  return result;
-}
-
-// GOOGLE SHEET'TEN AKILLI TABLO ALGILAMA VE VERİTABANINA İÇE AKTARMA
-async function importProductsFromSheet() {
-  const sheetInput = document.getElementById('googleSheetUrl');
-  if (!sheetInput || !sheetInput.value.trim()) {
-    showToast('Lütfen geçerli bir Google Sheet URL adresi veya ID giriniz.', 'warning');
-    return;
-  }
-
-  const rawInput = sheetInput.value.trim();
-  let sheetId = rawInput;
-
-  const match = rawInput.match(/\/d\/([a-zA-Z0-9-_]+)/);
-  if (match && match[1]) {
-    sheetId = match[1];
-  }
-
   const btn = document.getElementById('btnImportSheet');
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Akıllı Tablo Algılanıyor & Yükleniyor...';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Tablo Çekiliyor...';
   }
 
   try {
     const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`;
     const res = await fetch(csvUrl);
-
+    
     if (!res.ok) {
       throw new Error('Google Sheet verisi okunamadı. Lütfen tablonuzun "Bağlantıya sahip herkes görebilir" olarak ayarlandığından emin olun.');
     }
@@ -2032,87 +1996,35 @@ async function importProductsFromSheet() {
     const lines = csvText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
     if (lines.length <= 1) {
-      throw new Error('Google Sheet tablosu boş veya veri bulunamadı.');
+      throw new Error('Google Sheet tablosu boş veya geçersiz formatta.');
     }
-
-    // 1. Akıllı Sütun Başlığı Algılama (Smart Column Detection)
-    const headerCols = parseCSVLine(lines[0]).map(h => h.toLowerCase().trim());
-    
-    let idxCode = -1;
-    let idxShortCode = -1;
-    let idxName = -1;
-    let idxColor = -1;
-    let idxSize = -1;
-    let idxStock = -1;
-    let idxPrice = -1;
-    let idxCost = -1;
-    let idxCategory = -1;
-
-    headerCols.forEach((h, idx) => {
-      if (h.includes('kısa') || h.includes('short')) {
-        idxShortCode = idx;
-      } else if (h.includes('kodu') || h.includes('sku') || h.includes('barkod') || h.includes('code')) {
-        idxCode = idx;
-      } else if (h.includes('isim') || h.includes('ad') || h.includes('name') || h.includes('title')) {
-        idxName = idx;
-      } else if (h.includes('renk') || h.includes('color')) {
-        idxColor = idx;
-      } else if (h.includes('beden') || h.includes('numara') || h.includes('boyut') || h.includes('size')) {
-        idxSize = idx;
-      } else if (h.includes('stok') || h.includes('adet') || h.includes('miktar') || h.includes('stock') || h.includes('qty')) {
-        idxStock = idx;
-      } else if (h.includes('geliş') || h.includes('maliyet') || h.includes('alış') || h.includes('cost')) {
-        idxCost = idx;
-      } else if (h.includes('fiyat') || h.includes('satış') || h.includes('ücret') || h.includes('price')) {
-        idxPrice = idx;
-      } else if (h.includes('kategori') || h.includes('tür') || h.includes('category')) {
-        idxCategory = idx;
-      }
-    });
-
-    // Bulunamayan sütunlar için esnek varsayılan pozisyonlar
-    if (idxShortCode === -1) idxShortCode = 0;
-    if (idxName === -1) idxName = 1;
-    if (idxColor === -1) idxColor = 2;
-    if (idxSize === -1) idxSize = 3;
-    if (idxStock === -1) idxStock = 4;
-    if (idxPrice === -1) idxPrice = 5;
-    if (idxCategory === -1) idxCategory = 6;
 
     const importedProducts = [];
     const storeName = getActiveStoreName();
 
     for (let i = 1; i < lines.length; i++) {
-      const cols = parseCSVLine(lines[i]);
+      const cols = lines[i].split(',').map(c => c.replace(/^"|"$/g, '').trim());
       if (cols.length >= 2) {
-        const sc = (cols[idxShortCode] || 'STK').toUpperCase();
-        const name = cols[idxName] || 'İsimsiz Ürün';
-        const color = cols[idxColor] || 'Standart';
-        const size = (cols[idxSize] || 'M').toUpperCase();
-        const stockStr = cols[idxStock] ? String(cols[idxStock]).replace(/[^0-9.]/g, '') : '0';
-        const priceStr = cols[idxPrice] ? String(cols[idxPrice]).replace(/[^0-9.]/g, '') : '299';
-        const costStr = idxCost !== -1 && cols[idxCost] ? String(cols[idxCost]).replace(/[^0-9.]/g, '') : '0';
+        const sc = (cols[0] || 'STK').toUpperCase();
+        const name = cols[1] || 'İsimsiz Ürün';
+        const color = cols[2] || 'Standart';
+        const size = (cols[3] || 'M').toUpperCase();
+        const stock = Number(cols[4]) || 100;
+        const price = Number(cols[5]) || 299;
+        const category = cols[6] || 'Genel';
+        const code = cols[7] ? cols[7].toUpperCase() : `${sc}-${size}`;
 
-        const stock = Number(stockStr) || 0;
-        const price = Number(priceStr) || 299;
-        const costPrice = Number(costStr) || 0;
-        const category = cols[idxCategory] || 'Genel';
-        const code = idxCode !== -1 && cols[idxCode] ? cols[idxCode].toUpperCase() : `${sc}-${size}`;
-
-        if (name && code) {
-          importedProducts.push({
-            shortCode: sc,
-            productCode: code,
-            name: name,
-            color: color,
-            size: size,
-            stock: stock,
-            price: price,
-            costPrice: costPrice,
-            category: category,
-            storeName: storeName
-          });
-        }
+        importedProducts.push({
+          shortCode: sc,
+          productCode: code,
+          name: name,
+          color: color,
+          size: size,
+          stock: stock,
+          price: price,
+          category: category,
+          storeName: storeName
+        });
       }
     }
 
@@ -2120,25 +2032,11 @@ async function importProductsFromSheet() {
       throw new Error('Tablodan aktarılacak geçerli ürün verisi okunamadı.');
     }
 
-    // 2. Sunucu Veritabanına (SQLite app.db) Toplu Kaydet (/api/products/batch)
-    const serverRes = await fetch('/api/products/batch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ products: importedProducts })
-    });
-
-    const serverData = await serverRes.json();
-
-    if (!serverRes.ok || !serverData.success) {
-      throw new Error(serverData.error || 'Sunucu veritabanına toplu ürün yükleme başarısız oldu.');
-    }
-
-    // 3. Yerel Depolamayı Güncelle
     const currentProducts = getStoreProducts();
     const mergedProducts = [...importedProducts, ...currentProducts];
     saveStoreProducts(mergedProducts);
 
-    showToast(`🎉 Akıllı Algılama Başarılı! Google Sheet tablosundan ${importedProducts.length} adet stok ürünü doğrudan veritabanınıza yüklendi!`, 'success');
+    showToast(`🎉 Başarılı! Google Sheet tablosundan ${importedProducts.length} adet stok ürünü veritabanınıza içe aktarıldı!`, 'success');
     
     setTimeout(() => {
       window.location.href = 'index.html';
