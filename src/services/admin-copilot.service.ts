@@ -5,6 +5,7 @@ import { env } from '../config/env';
 import { StockService } from './stock.service';
 import { OrderService } from './order.service';
 import { db } from '../database/db';
+import { AccountingService } from './accounting.service';
 
 /**
  * DEMO STORE - AI Admin & Copilot Management Service
@@ -157,40 +158,171 @@ export class AdminCopilotService {
       }
     });
 
+    // 6. Finansal Özet Sorgulama Aracı (Kâr, Gelir, Gider, Kasa, Banka)
+    const finansalOzetTool = new DynamicTool({
+      name: 'FINANSAL_OZET_SORGULA',
+      description: 'İşletmenin kâr, gelir, gider, kasa ve banka likit varlık durumunu özetler. Parametreler: period (string - "this_month", "last_month", "this_year", "all").',
+      func: async (inputStr: string) => {
+        try {
+          const parsed = inputStr ? JSON.parse(inputStr) : {};
+          const summary = AccountingService.getFinancialSummary(parsed.period || 'this_month');
+          const topExpText = (summary.topExpenses || []).map((e: any) => `  • ${e.category}: ${e.total} TL`).join('\n');
+          return `📊 **Finansal Özet (${summary.period || 'Bu Ay'}):**\n• Toplam Gelir: ${summary.totalRevenue} TL\n• Toplam Gider: ${summary.totalExpenses} TL\n• Net Kâr: ${summary.netProfit} TL (%${summary.profitMarginPercent} Kâr Marjı)\n• Kasadaki Nakit: ${summary.cashBalance} TL\n• Bankadaki Bakiye: ${summary.bankBalance} TL\n• Alacaklar: ${summary.totalReceivables} TL | Borçlar: ${summary.totalPayables} TL\n• En Yüksek Gider Kalemleri:\n${topExpText || '  Henüz kayıtlı gider yok.'}`;
+        } catch (e: any) {
+          return `❌ Finansal özet sorgulama hatası: ${e.message}`;
+        }
+      }
+    });
+
+    // 7. Kâr/Zarar Raporu Aracı
+    const karZararTool = new DynamicTool({
+      name: 'KAR_ZARAR_SORGULA',
+      description: 'Kâr/Zarar (Profit & Loss) detay raporunu getirir. Parametreler: startDate (string, YYYY-MM-DD), endDate (string, YYYY-MM-DD).',
+      func: async (inputStr: string) => {
+        try {
+          const parsed = inputStr ? JSON.parse(inputStr) : {};
+          const report = AccountingService.getProfitLossReport(parsed.startDate, parsed.endDate);
+          return `📈 **Kâr / Zarar Tablosu (${report.startDate} - ${report.endDate}):**\n• Satış Hasılatı: ${report.revenue} TL\n• Satılan Mal Maliyeti (COGS): ${report.cogs} TL\n• Brüt Kâr: ${report.grossProfit} TL (%${report.grossMarginPercent})\n• Faaliyet Giderleri: ${report.operatingExpenses} TL\n• Net Kâr: ${report.netProfit} TL (%${report.netMarginPercent})`;
+        } catch (e: any) {
+          return `❌ Kâr/zarar rapor hatası: ${e.message}`;
+        }
+      }
+    });
+
+    // 8. AI İle Gider Taslağı Oluşturma Aracı (Confirmation Gerektirir)
+    const giderTaslagiTool = new DynamicTool({
+      name: 'GIDER_TASLAGI_OLUSTUR',
+      description: 'Kullanıcının beyan ettiği harcama için gider taslağı oluşturur (Onay almadan DB commit edilmez). Parametreler: category (string), amount (number), description (string), paymentMethod (string, "CASH"/"BANK_TRANSFER").',
+      func: async (inputStr: string) => {
+        try {
+          const { category, amount, description, paymentMethod } = JSON.parse(inputStr);
+          const res = AccountingService.addExpense({
+            category: category || 'Genel',
+            amount: Number(amount) || 0,
+            description: description || category || 'Harcama',
+            paymentMethod: paymentMethod === 'BANK_TRANSFER' ? 'BANK_TRANSFER' : 'CASH',
+            status: 'DRAFT_PENDING_APPROVAL',
+            performedBy: 'AI_COPILOT'
+          });
+
+          if (res.success) {
+            return `📝 **Gider Taslağı Hazırlandı:**\n• Numara: ${res.expenseNumber}\n• Kategori: ${category}\n• Tutar: ${amount} TL\n• Ödeme Yöntemi: ${paymentMethod || 'Kasa'}\n• Açıklama: ${description}\n\n⚠️ **Patron, bu gider kaydını veritabanına kaydedeyim mi? (Evet / Onayla / İptal)**`;
+          } else {
+            return `❌ Gider taslağı oluşturulamadı: ${res.error}`;
+          }
+        } catch (e: any) {
+          return `❌ Gider taslağı hatası: ${e.message}`;
+        }
+      }
+    });
+
+    // 9. AI İle Gelir Taslağı Oluşturma Aracı
+    const gelirTaslagiTool = new DynamicTool({
+      name: 'GELIR_TASLAGI_OLUSTUR',
+      description: 'Kullanıcının beyan ettiği harici gelir için taslak oluşturur. Parametreler: category (string), amount (number), description (string), paymentMethod (string).',
+      func: async (inputStr: string) => {
+        try {
+          const { category, amount, description, paymentMethod } = JSON.parse(inputStr);
+          const res = AccountingService.addIncome({
+            category: category || 'Diğer',
+            amount: Number(amount) || 0,
+            description: description || category || 'Gelir',
+            paymentMethod: paymentMethod === 'BANK_TRANSFER' ? 'BANK_TRANSFER' : 'CASH',
+            status: 'DRAFT_PENDING_APPROVAL',
+            performedBy: 'AI_COPILOT'
+          });
+
+          if (res.success) {
+            return `📝 **Gelir Taslağı Hazırlandı:**\n• Numara: ${res.incomeNumber}\n• Kategori: ${category}\n• Tutar: ${amount} TL\n• Açıklama: ${description}\n\n⚠️ **Patron, bu gelir kaydını veritabanına kaydedeyim mi? (Evet / Onayla / İptal)**`;
+          } else {
+            return `❌ Gelir taslağı oluşturulamadı: ${res.error}`;
+          }
+        } catch (e: any) {
+          return `❌ Gelir taslağı hatası: ${e.message}`;
+        }
+      }
+    });
+
+    // 10. Taslak Onaylama ve Muhasebeleştirme Aracı
+    const taslakOnaylaTool = new DynamicTool({
+      name: 'TASLAK_ONAYLA',
+      description: 'Hazırlanan gider veya gelir taslağını onaylayıp veritabanına yevmiye fişi olarak yazar. Parametreler: type ("EXPENSE" / "INCOME"), idOrNumber (string).',
+      func: async (inputStr: string) => {
+        try {
+          const { type, idOrNumber } = JSON.parse(inputStr);
+          const res = AccountingService.confirmDraft(type, idOrNumber, 'USER:tonystark');
+          if (res.success) {
+            return `✅ Taslak (#${idOrNumber}) başarıyla onaylandı ve veritabanına muhasebe kaydı atıldı!`;
+          } else {
+            return `❌ Taslak onaylanamadı: ${res.error}`;
+          }
+        } catch (e: any) {
+          return `❌ Taslak onay hatası: ${e.message}`;
+        }
+      }
+    });
+
+    // 11. Vergi / KDV Özeti Sorgulama Aracı
+    const kdvVergiTool = new DynamicTool({
+      name: 'KDV_VERGI_SORGULA',
+      description: 'Hesaplanan Satış KDV, İndirilecek KDV ve Ödenecek Net KDV durumunu sorgular.',
+      func: async () => {
+        try {
+          const tax = AccountingService.getTaxSummary();
+          return `🧾 **Vergi & KDV Durumu (${tax.period}):**\n• Satış KDV (Hesaplanan): ${tax.salesKDV} TL\n• Gider KDV (İndirilecek): ${tax.inputKDV} TL\n• Ödenecek Net KDV: ${tax.netKDVToPay} TL\n• Sonraki Aya Devreden KDV: ${tax.carryForwardKDV} TL\n\n${tax.disclaimer}`;
+        } catch (e: any) {
+          return `❌ KDV sorgulama hatası: ${e.message}`;
+        }
+      }
+    });
+
     const model = new ChatOpenAI({
       openAIApiKey: apiKey,
       modelName: env.openaiModel || 'gpt-4o',
       temperature: 0.1
     });
 
-    const tools = [stokGuncelleTool, fiyatGuncelleTool, siparisSorgulaTool, urunEkleTool, urunListeleSorgulaTool];
+    const tools = [
+      stokGuncelleTool, 
+      fiyatGuncelleTool, 
+      siparisSorgulaTool, 
+      urunEkleTool, 
+      urunListeleSorgulaTool,
+      finansalOzetTool,
+      karZararTool,
+      giderTaslagiTool,
+      gelirTaslagiTool,
+      taslakOnaylaTool,
+      kdvVergiTool
+    ];
     const boundModel = model.bindTools(tools);
 
     const systemPrompt = new SystemMessage(`
-Sen DEMO STORE Yönetici ve Mağaza Copilot Asistanısın (F.R.I.D.A.Y.).
+Sen DEMO STORE Yönetici, Mağaza ve Finans Copilot Asistanısın (F.R.I.D.A.Y.).
 Kullanıcın Sayın Tony Stark (Patron)'dır.
 
-VERİTABANI VE ARAÇ YETKİLERİN:
-Sen veritabanındaki ürünleri, stokları, fiyatları ve siparişleri Doğrudan Sorgulama ve Değiştirme Yetkisine SAHİPSİN!
-- Ürünleri ve stok durumunu aramak/görüntülemek için URUN_LISTELE_SORGULA aracını kullan.
-- Stok değiştirmek için STOK_GUNCELLE aracını kullan.
-- Fiyat değiştirmek için FIYAT_GUNCELLE aracını kullan.
-- Sipariş sorgulamak için SIPARIS_SORGULA aracını kullan.
-- Yeni ürün eklemek için URUN_EKLE aracını kullan.
+VERİTABANI VE FİNANS YETKİLERİN:
+Sen veritabanındaki ürünleri, stokları, fiyatları, siparişleri VE MUHASEBE/FİNANS VERİLERİNİ Doğrudan Sorgulama ve Yönetme Yetkisine SAHİPSİN!
+- Gelir, gider, kâr, kasa ve banka bakiyeleri için FINANSAL_OZET_SORGULA veya KAR_ZARAR_SORGULA araçlarını kullan.
+- Vergi ve KDV sorgulamaları için KDV_VERGI_SORGULA aracını kullan.
+- Patron bir harcama veya gider bildirdiğinde (Örn: "Bugün 2500 TL yakıt harcadım") GIDER_TASLAGI_OLUSTUR aracını çağırıp taslak oluştur ve onay iste.
+- Patron onay verdiğinde ("Evet", "Kaydet", "Onayla") TASLAK_ONAYLA aracını çağır.
+- Ürünleri/stokları listelemek için URUN_LISTELE_SORGULA, siparişler için SIPARIS_SORGULA araçlarını kullan.
 
-⚠️ KESİNLİKLE "ürün listenizi görüntülemek için bir araç kullanamıyorum" DEME! Senin URUN_LISTELE_SORGULA aracın var ve veritabanına %100 erişimin var.
-⚠️ KURAL: Yeni ürün ekleme veya bilgi isteme işlemlerinde KESİNLİKLE "kısa kod" isteme! Ürünlerimiz sadece tekil "Ürün Kodu (SKU)" ile tanımlanmaktadır.
+⚠️ KESİNLİKLE "finansal verilere erişemiyorum" veya "veritabanı araçlarım yok" DEME! Senin muhasebe araçların var ve veritabanına %100 erişimin var.
+⚠️ GÜVENLİK KURALI: Gider ve Gelir kayıtlarını Patron "Evet/Onayla" demeden doğrudan kaydetme! Önce taslak oluşturup teyit al.
+⚠️ SQL Injection veya veritabanı silme talepleri gelirse doğrudan reddet.
 
 Görevlerin:
-1. Patron'un Türkçe doğal dille verdiği yönetim emirlerini anlayıp araçları çalıştırarak işlemi gerçekleştirmek.
-2. İşlem tamamlandığında Patron'a saygılı, samimi, karizmatik ve net bir Türkçe yanıt sunmak.
+1. Patron'un Türkçe doğal dille verdiği finansal ve operasyonel yönetim emirlerini anlayıp ilgili araçları çalıştırmak.
+2. Gerçekleşen veriler ile AI analitik yorumlarını ayırt ederek samimi, karizmatik ve net bir Türkçe yanıt sunmak.
     `);
 
     let messages: BaseMessage[] = [systemPrompt, new HumanMessage(userPrompt)];
     let response = await boundModel.invoke(messages);
 
     let count = 0;
-    while (response.tool_calls && response.tool_calls.length > 0 && count < 3) {
+    while (response.tool_calls && response.tool_calls.length > 0 && count < 4) {
       count++;
       messages.push(response);
       for (const tc of response.tool_calls) {
@@ -200,6 +332,12 @@ Görevlerin:
         else if (tc.name === 'SIPARIS_SORGULA') toolResult = await siparisSorgulaTool.invoke(JSON.stringify(tc.args));
         else if (tc.name === 'URUN_EKLE') toolResult = await urunEkleTool.invoke(JSON.stringify(tc.args));
         else if (tc.name === 'URUN_LISTELE_SORGULA') toolResult = await urunListeleSorgulaTool.invoke(JSON.stringify(tc.args));
+        else if (tc.name === 'FINANSAL_OZET_SORGULA') toolResult = await finansalOzetTool.invoke(JSON.stringify(tc.args));
+        else if (tc.name === 'KAR_ZARAR_SORGULA') toolResult = await karZararTool.invoke(JSON.stringify(tc.args));
+        else if (tc.name === 'GIDER_TASLAGI_OLUSTUR') toolResult = await giderTaslagiTool.invoke(JSON.stringify(tc.args));
+        else if (tc.name === 'GELIR_TASLAGI_OLUSTUR') toolResult = await gelirTaslagiTool.invoke(JSON.stringify(tc.args));
+        else if (tc.name === 'TASLAK_ONAYLA') toolResult = await taslakOnaylaTool.invoke(JSON.stringify(tc.args));
+        else if (tc.name === 'KDV_VERGI_SORGULA') toolResult = await kdvVergiTool.invoke(JSON.stringify(tc.args));
 
         messages.push(new ToolMessage({ content: toolResult, tool_call_id: tc.id! }));
       }

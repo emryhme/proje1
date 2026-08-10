@@ -78,7 +78,14 @@ export function initDatabase() {
   `);
 
   // 4. Sistem Ayarları Tablosu (settings - Kargo Fiyatları vb.)
-  // 5. Müşteri Kişiye Özel İndirim Ödülleri Tablosu (user_rewards - Instagram ID'ye özel %20 İndirim)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    );
+  `);
+
+  // 5. Müşteri Kişiye Özel İndirim Ödülleri Tablosu (user_rewards)
   db.exec(`
     CREATE TABLE IF NOT EXISTS user_rewards (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -92,8 +99,139 @@ export function initDatabase() {
     );
   `);
 
+  // 6. MUHASEBE TABLOLARI (Accounting Module Tables)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS accounting_accounts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL, -- 'ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE'
+      currency TEXT NOT NULL DEFAULT 'TRY',
+      balance REAL NOT NULL DEFAULT 0.00,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS accounting_transactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      transaction_number TEXT UNIQUE NOT NULL,
+      date TEXT NOT NULL,
+      description TEXT NOT NULL,
+      reference_type TEXT DEFAULT NULL,
+      reference_id TEXT DEFAULT NULL,
+      debit_total REAL NOT NULL DEFAULT 0.00,
+      credit_total REAL NOT NULL DEFAULT 0.00,
+      status TEXT NOT NULL DEFAULT 'POSTED',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS accounting_transaction_lines (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      transaction_id INTEGER NOT NULL,
+      account_code TEXT NOT NULL,
+      debit REAL NOT NULL DEFAULT 0.00,
+      credit REAL NOT NULL DEFAULT 0.00,
+      description TEXT DEFAULT '',
+      FOREIGN KEY(transaction_id) REFERENCES accounting_transactions(id) ON DELETE CASCADE,
+      FOREIGN KEY(account_code) REFERENCES accounting_accounts(code)
+    );
+
+    CREATE TABLE IF NOT EXISTS expenses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      expense_number TEXT UNIQUE NOT NULL,
+      category TEXT NOT NULL,
+      amount REAL NOT NULL,
+      tax_amount REAL NOT NULL DEFAULT 0.00,
+      tax_rate REAL NOT NULL DEFAULT 20.0,
+      currency TEXT NOT NULL DEFAULT 'TRY',
+      payment_method TEXT NOT NULL,
+      account_code TEXT NOT NULL,
+      supplier_name TEXT DEFAULT '',
+      description TEXT NOT NULL,
+      invoice_number TEXT DEFAULT '',
+      is_recurring INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'CONFIRMED',
+      date TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS income_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      income_number TEXT UNIQUE NOT NULL,
+      category TEXT NOT NULL,
+      amount REAL NOT NULL,
+      tax_amount REAL NOT NULL DEFAULT 0.00,
+      currency TEXT NOT NULL DEFAULT 'TRY',
+      payment_method TEXT NOT NULL,
+      account_code TEXT NOT NULL,
+      customer_name TEXT DEFAULT '',
+      description TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'CONFIRMED',
+      date TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS invoices (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      invoice_number TEXT UNIQUE NOT NULL,
+      type TEXT NOT NULL, -- 'SALE' | 'PURCHASE'
+      party_name TEXT NOT NULL,
+      party_phone TEXT DEFAULT '',
+      date TEXT NOT NULL,
+      due_date TEXT DEFAULT NULL,
+      subtotal REAL NOT NULL DEFAULT 0.00,
+      discount REAL NOT NULL DEFAULT 0.00,
+      tax_amount REAL NOT NULL DEFAULT 0.00,
+      total_amount REAL NOT NULL DEFAULT 0.00,
+      paid_amount REAL NOT NULL DEFAULT 0.00,
+      currency TEXT NOT NULL DEFAULT 'TRY',
+      status TEXT NOT NULL DEFAULT 'ISSUED',
+      order_id TEXT DEFAULT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS invoice_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      invoice_id INTEGER NOT NULL,
+      product_code TEXT DEFAULT '',
+      description TEXT NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      unit_price REAL NOT NULL DEFAULT 0.00,
+      tax_rate REAL NOT NULL DEFAULT 20.0,
+      tax_amount REAL NOT NULL DEFAULT 0.00,
+      total REAL NOT NULL DEFAULT 0.00,
+      FOREIGN KEY(invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS accounting_payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      payment_number TEXT UNIQUE NOT NULL,
+      type TEXT NOT NULL, -- 'INBOUND' | 'OUTBOUND'
+      invoice_id INTEGER DEFAULT NULL,
+      party_name TEXT NOT NULL,
+      amount REAL NOT NULL,
+      currency TEXT NOT NULL DEFAULT 'TRY',
+      payment_method TEXT NOT NULL,
+      account_code TEXT NOT NULL,
+      date TEXT NOT NULL,
+      reference_no TEXT DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(invoice_id) REFERENCES invoices(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS accounting_audit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      action TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      performed_by TEXT NOT NULL,
+      details TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
   // Auto Migrations: Kolonlar eksikse otomatik ekle
   try { db.exec(`ALTER TABLE products ADD COLUMN price REAL NOT NULL DEFAULT 299.00;`); } catch (e) {}
+  try { db.exec(`ALTER TABLE products ADD COLUMN cost_price REAL NOT NULL DEFAULT 0.00;`); } catch (e) {}
   try { db.exec(`ALTER TABLE orders ADD COLUMN unit_price REAL NOT NULL DEFAULT 0;`); } catch (e) {}
   try { db.exec(`ALTER TABLE orders ADD COLUMN shipping_fee REAL NOT NULL DEFAULT 0;`); } catch (e) {}
   try { db.exec(`ALTER TABLE orders ADD COLUMN discount REAL NOT NULL DEFAULT 0;`); } catch (e) {}
@@ -111,12 +249,59 @@ export function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_orders_sender ON orders(sender_id);
     CREATE INDEX IF NOT EXISTS idx_campaigns_active ON campaigns(active);
     CREATE INDEX IF NOT EXISTS idx_rewards_sender ON user_rewards(sender_id);
+    CREATE INDEX IF NOT EXISTS idx_acc_accounts_code ON accounting_accounts(code);
+    CREATE INDEX IF NOT EXISTS idx_acc_trx_date ON accounting_transactions(date);
+    CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);
+    CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category);
+    CREATE INDEX IF NOT EXISTS idx_income_date ON income_entries(date);
+    CREATE INDEX IF NOT EXISTS idx_invoices_number ON invoices(invoice_number);
+    CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
+    CREATE INDEX IF NOT EXISTS idx_payments_invoice ON accounting_payments(invoice_id);
+    CREATE INDEX IF NOT EXISTS idx_audit_entity ON accounting_audit_logs(entity_type, entity_id);
   `);
 
-  // Varsayılan Başlangıç Stok & Kampanya Verilerini Yükle
+  // Varsayılan Başlangıç Verilerini Yükle
   seedInitialProducts();
   seedInitialSettings();
   seedInitialCampaigns();
+  seedInitialAccountingAccounts();
+}
+
+/**
+  * Varsayılan Hesap Planını Yükler (Chart of Accounts)
+  */
+function seedInitialAccountingAccounts() {
+  const countStmt = db.prepare('SELECT COUNT(*) as count FROM accounting_accounts');
+  const result = countStmt.get() as { count: number };
+
+  if (result.count === 0) {
+    const insertStmt = db.prepare(`
+      INSERT OR IGNORE INTO accounting_accounts (code, name, type, currency, balance)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+
+    const defaultAccounts = [
+      { code: '100.01', name: 'Nakit Kasa', type: 'ASSET', currency: 'TRY', balance: 0 },
+      { code: '102.01', name: 'Garanti Bankası', type: 'ASSET', currency: 'TRY', balance: 0 },
+      { code: '102.02', name: 'İş Bankası', type: 'ASSET', currency: 'TRY', balance: 0 },
+      { code: '102.03', name: 'Ziraat Bankası', type: 'ASSET', currency: 'TRY', balance: 0 },
+      { code: '120', name: 'Alıcılar / Müşteri Cari', type: 'ASSET', currency: 'TRY', balance: 0 },
+      { code: '150', name: 'Ticari Mallar Stok Hesabı', type: 'ASSET', currency: 'TRY', balance: 0 },
+      { code: '191', name: 'İndirilecek KDV', type: 'ASSET', currency: 'TRY', balance: 0 },
+      { code: '320', name: 'Satıcılar / Tedarikçi Cari', type: 'LIABILITY', currency: 'TRY', balance: 0 },
+      { code: '391', name: 'Hesaplanan KDV', type: 'LIABILITY', currency: 'TRY', balance: 0 },
+      { code: '500', name: 'Sermaye / Özkaynaklar', type: 'EQUITY', currency: 'TRY', balance: 0 },
+      { code: '600', name: 'Satış Gelirleri', type: 'REVENUE', currency: 'TRY', balance: 0 },
+      { code: '602', name: 'Diğer Gelirler', type: 'REVENUE', currency: 'TRY', balance: 0 },
+      { code: '621', name: 'Satılan Ticari Mallar Maliyeti (STMM)', type: 'EXPENSE', currency: 'TRY', balance: 0 },
+      { code: '770', name: 'Genel Yönetim & Faaliyet Giderleri', type: 'EXPENSE', currency: 'TRY', balance: 0 }
+    ];
+
+    for (const acc of defaultAccounts) {
+      insertStmt.run(acc.code, acc.name, acc.type, acc.currency, acc.balance);
+    }
+    console.log(`[Database] 💰 ${defaultAccounts.length} varsayılan muhasebe hesabı yüklendi.`);
+  }
 }
 
 /**

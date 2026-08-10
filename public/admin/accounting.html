@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ISC WORKS - AI Destekli Muhasebe & Finans Yönetimi</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .finance-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .stat-card-custom {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 18px;
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+        .stat-card-custom .stat-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+        .stat-card-custom .stat-value {
+            font-size: 22px;
+            font-weight: 800;
+            color: #f8fafc;
+        }
+        .stat-card-custom .stat-sub {
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+        .stat-card-custom.green { border-left: 4px solid #10b981; }
+        .stat-card-custom.red { border-left: 4px solid #ef4444; }
+        .stat-card-custom.purple { border-left: 4px solid #8b5cf6; }
+        .stat-card-custom.blue { border-left: 4px solid #3b82f6; }
+        .stat-card-custom.amber { border-left: 4px solid #f59e0b; }
+        .stat-card-custom.cyan { border-left: 4px solid #06b6d4; }
+        
+        .action-bar-finance {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        
+        /* Modal Stilleri */
+        .modal-backdrop {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(6px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .modal-backdrop.active { display: flex; }
+        .modal-box {
+            background: #1e293b;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            width: 100%;
+            max-width: 500px;
+            padding: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 18px;
+        }
+        .modal-title { font-size: 16px; font-weight: 700; color: #f8fafc; }
+        .modal-close { cursor: pointer; color: #94a3b8; font-size: 18px; }
+        
+        .tabs-nav {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            padding-bottom: 10px;
+        }
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+        .tab-btn.active {
+            background: #3b82f6;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+<div class="admin-layout">
+    <!-- SOL MENÜ (SIDEBAR) -->
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-logo">
+                <i data-lucide="bot"></i>
+            </div>
+            <div class="brand-text">
+                <h2>DEMO STORE</h2>
+                <p>ISC WORKS AI Enterprise</p>
+            </div>
+        </div>
+
+        <nav class="nav-menu">
+            <div class="section-title">ANA MENÜ</div>
+            <a href="index.html" class="nav-item">
+                <i data-lucide="layout-dashboard"></i>
+                Stok & Ürün Listesi
+            </a>
+
+            <a href="orders.html" class="nav-item">
+                <i data-lucide="shopping-bag"></i>
+                Sipariş Takibi
+            </a>
+
+            <a href="new-product.html" class="nav-item">
+                <i data-lucide="package-plus"></i>
+                Yeni Ürün Girişi
+            </a>
+
+            <a href="accounting.html" class="nav-item active">
+                <i data-lucide="landmark"></i>
+                AI Muhasebe & Finans
+            </a>
+
+            <a href="campaigns.html" class="nav-item">
+                <i data-lucide="badge-percent"></i>
+                Kampanyalar
+            </a>
+
+            <div class="section-title">AI & MAĞAZA YÖNETİMİ</div>
+
+            <a href="ai-product.html" class="nav-item">
+                <i data-lucide="sparkles"></i>
+                F.R.I.D.A.Y. AI Copilot
+            </a>
+
+            <a href="settings.html" class="nav-item">
+                <i data-lucide="settings"></i>
+                Fiyat & Kargo Ayarları
+            </a>
+
+            <div class="section-title">SİSTEM & ALTYAPI</div>
+
+            <a href="api-settings.html" class="nav-item">
+                <i data-lucide="sliders"></i>
+                API & AI Kişiselleştirme
+            </a>
+        </nav>
+    </aside>
+
+    <!-- SAĞ İÇERİK ALANI -->
+    <main class="main-content">
+        <header class="topbar">
+            <div class="page-title">
+                <h1>AI Muhasebe & Finans Yönetimi</h1>
+                <p>Çift Taraflı (Double-Entry) Yevmiye Defteri, Kâr/Zarar, Bilanço ve AI Finans Analisti</p>
+            </div>
+            <div class="topbar-actions">
+                <select id="periodSelect" class="form-control" style="width: auto; background:#1e293b; color:#fff;" onchange="loadFinancialData()">
+                    <option value="this_month">📅 Bu Ay</option>
+                    <option value="last_month">📅 Geçen Ay</option>
+                    <option value="this_year">📅 Bu Yıl</option>
+                    <option value="all">📅 Tüm Zamanlar</option>
+                </select>
+                <button class="btn btn-secondary btn-sm" onclick="loadFinancialData()">
+                    <i data-lucide="refresh-cw"></i> Yenile
+                </button>
+            </div>
+        </header>
+
+        <section class="content-body">
+            <!-- FİNANSAL İSTATİSTİK KARTLARI -->
+            <div class="finance-grid">
+                <div class="stat-card-custom green">
+                    <div class="stat-title">💰 Toplam Satış Geliri</div>
+                    <div class="stat-value" id="cardRevenue">0 TL</div>
+                    <div class="stat-sub" id="cardSalesCount">0 onaylı sipariş</div>
+                </div>
+
+                <div class="stat-card-custom red">
+                    <div class="stat-title">💸 Toplam Giderler</div>
+                    <div class="stat-value" id="cardExpenses">0 TL</div>
+                    <div class="stat-sub">Kira, kargo, reklam vb.</div>
+                </div>
+
+                <div class="stat-card-custom purple">
+                    <div class="stat-title">📈 Net Kâr</div>
+                    <div class="stat-value" id="cardNetProfit">0 TL</div>
+                    <div class="stat-sub" id="cardProfitMargin">%0 Kâr Marjı</div>
+                </div>
+
+                <div class="stat-card-custom cyan">
+                    <div class="stat-title">💵 Kasadaki Nakit</div>
+                    <div class="stat-value" id="cardCash">0 TL</div>
+                    <div class="stat-sub">100.01 Kasa Hesabı</div>
+                </div>
+
+                <div class="stat-card-custom blue">
+                    <div class="stat-title">🏦 Bankadaki Bakiye</div>
+                    <div class="stat-value" id="cardBank">0 TL</div>
+                    <div class="stat-sub">Garanti, İş, Ziraat Varlıkları</div>
+                </div>
+
+                <div class="stat-card-custom amber">
+                    <div class="stat-title">🧾 Tahmini Net KDV</div>
+                    <div class="stat-value" id="cardNetKDV">0 TL</div>
+                    <div class="stat-sub" id="cardKDVSub">Satış KDV - İndirilecek KDV</div>
+                </div>
+            </div>
+
+            <!-- BUTON AKSİYON BARI -->
+            <div class="action-bar-finance">
+                <button class="btn btn-primary" onclick="openModal('expenseModal')">
+                    <i class="fa-solid fa-minus-circle"></i> + Gider Ekle (Expense)
+                </button>
+                <button class="btn btn-secondary" onclick="openModal('incomeModal')" style="background:#10b981; border-color:#10b981;">
+                    <i class="fa-solid fa-plus-circle"></i> + Gelir Ekle (Income)
+                </button>
+                <button class="btn btn-secondary" onclick="openModal('invoiceModal')">
+                    <i class="fa-solid fa-file-invoice-dollar"></i> + Fatura Oluştur
+                </button>
+            </div>
+
+            <!-- SEKMELER VE TABLOLAR -->
+            <div class="tabs-nav">
+                <button class="tab-btn active" onclick="switchTab('expensesTab', this)">💸 Gider Kayıtları</button>
+                <button class="tab-btn" onclick="switchTab('incomeTab', this)">💰 Gelir Kayıtları</button>
+                <button class="tab-btn" onclick="switchTab('invoicesTab', this)">🧾 Faturalar</button>
+                <button class="tab-btn" onclick="switchTab('transactionsTab', this)">⚖️ Çift Taraflı Yevmiye Fişleri</button>
+                <button class="tab-btn" onclick="switchTab('pnlTab', this)">📊 Kâr / Zarar & Bilanço</button>
+            </div>
+
+            <!-- 1. GİDER TABLOSU -->
+            <div id="expensesTab" class="tab-content">
+                <div class="card table-card">
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>GİDER NO</th>
+                                    <th>TARİH</th>
+                                    <th>KATEGORİ</th>
+                                    <th>AÇIKLAMA</th>
+                                    <th>TUTAR</th>
+                                    <th>KDV</th>
+                                    <th>ÖDEME YÖNTEMİ</th>
+                                    <th>DURUM</th>
+                                    <th>İŞLEM</th>
+                                </tr>
+                            </thead>
+                            <tbody id="expensesTableBody">
+                                <tr><td colspan="9" style="text-align:center; padding:30px; color:#64748b;">Gider verileri yükleniyor...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. GELİR TABLOSU -->
+            <div id="incomeTab" class="tab-content" style="display:none;">
+                <div class="card table-card">
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>GELİR NO</th>
+                                    <th>TARİH</th>
+                                    <th>KATEGORİ</th>
+                                    <th>MÜŞTERİ / TARAF</th>
+                                    <th>AÇIKLAMA</th>
+                                    <th>TUTAR</th>
+                                    <th>DURUM</th>
+                                    <th>İŞLEM</th>
+                                </tr>
+                            </thead>
+                            <tbody id="incomeTableBody">
+                                <tr><td colspan="8" style="text-align:center; padding:30px; color:#64748b;">Gelir verileri yükleniyor...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. FATURALAR TABLOSU -->
+            <div id="invoicesTab" class="tab-content" style="display:none;">
+                <div class="card table-card">
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>FATURA NO</th>
+                                    <th>TÜR</th>
+                                    <th>TARAF / İSİM</th>
+                                    <th>TARİH</th>
+                                    <th>MATRAH</th>
+                                    <th>KDV</th>
+                                    <th>TOPLAM TUTAR</th>
+                                    <th>ÖDENEN</th>
+                                    <th>DURUM</th>
+                                </tr>
+                            </thead>
+                            <tbody id="invoicesTableBody">
+                                <tr><td colspan="9" style="text-align:center; padding:30px; color:#64748b;">Faturalar yükleniyor...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. YEVMİYE FİŞLERİ TABLOSU -->
+            <div id="transactionsTab" class="tab-content" style="display:none;">
+                <div class="card table-card">
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>FİŞ NO</th>
+                                    <th>TARİH</th>
+                                    <th>AÇIKLAMA</th>
+                                    <th>REFERANS</th>
+                                    <th>BORÇ TOPLAMI</th>
+                                    <th>ALACAK TOPLAMI</th>
+                                    <th>DENGELİ Mİ?</th>
+                                </tr>
+                            </thead>
+                            <tbody id="transactionsTableBody">
+                                <tr><td colspan="7" style="text-align:center; padding:30px; color:#64748b;">Yevmiye fişleri yükleniyor...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. KÂR ZARAR VE BİLANÇO RAPORU -->
+            <div id="pnlTab" class="tab-content" style="display:none;">
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+                    <div class="card p-4" style="padding:20px;">
+                        <h3 style="margin-bottom:15px; color:#38bdf8;">📊 Kâr / Zarar Tablosu (P&L)</h3>
+                        <div id="pnlReportContent" style="line-height:2; font-size:13px;">Yükleniyor...</div>
+                    </div>
+                    <div class="card p-4" style="padding:20px;">
+                        <h3 style="margin-bottom:15px; color:#a78bfa;">⚖️ Bilanço (Balance Sheet)</h3>
+                        <div id="balanceSheetContent" style="line-height:2; font-size:13px;">Yükleniyor...</div>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+    </main>
+</div>
+
+<!-- MODAL: GİDER EKLE -->
+<div class="modal-backdrop" id="expenseModal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <div class="modal-title">💸 Gider Ekle (Add Expense)</div>
+            <div class="modal-close" onclick="closeModal('expenseModal')">✕</div>
+        </div>
+        <form id="expenseForm" onsubmit="submitExpense(event)">
+            <div class="form-group mb-3">
+                <label>Gider Kategorisi</label>
+                <select id="expCategory" class="form-control" required style="width:100%; padding:8px; background:#0f172a; color:#fff;">
+                    <option value="Kira">Kira</option>
+                    <option value="Elektrik">Elektrik</option>
+                    <option value="Su">Su</option>
+                    <option value="İnternet">İnternet</option>
+                    <option value="Personel">Personel / Maaş</option>
+                    <option value="Reklam">Reklam / Pazarlama</option>
+                    <option value="Kargo">Kargo Ücretleri</option>
+                    <option value="Yakıt">Yakıt / Ulaşım</option>
+                    <option value="Yazılım">Yazılım / Sunucu</option>
+                    <option value="Vergi">Vergi / Harç</option>
+                    <option value="Bakım">Ofis & Bakım</option>
+                    <option value="Diğer">Diğer</option>
+                </select>
+            </div>
+            <div class="form-group mb-3">
+                <label>Tutar (TL - KDV Dahil)</label>
+                <input type="number" id="expAmount" placeholder="1500" required step="0.01" style="width:100%; padding:8px; background:#0f172a; color:#fff;">
+            </div>
+            <div class="form-group mb-3">
+                <label>Ödeme Yöntemi</label>
+                <select id="expPaymentMethod" class="form-control" style="width:100%; padding:8px; background:#0f172a; color:#fff;">
+                    <option value="CASH">Nakit Kasa (100.01)</option>
+                    <option value="BANK_TRANSFER">Banka Havale/EFT (102.01)</option>
+                </select>
+            </div>
+            <div class="form-group mb-3">
+                <label>Açıklama / Detay</label>
+                <input type="text" id="expDescription" placeholder="Örn: Temmuz ayı dükkan kirası" required style="width:100%; padding:8px; background:#0f172a; color:#fff;">
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%;">Gideri Kaydet & Fiş At</button>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL: GELİR EKLE -->
+<div class="modal-backdrop" id="incomeModal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <div class="modal-title">💰 Harici Gelir Ekle (Add Income)</div>
+            <div class="modal-close" onclick="closeModal('incomeModal')">✕</div>
+        </div>
+        <form id="incomeForm" onsubmit="submitIncome(event)">
+            <div class="form-group mb-3">
+                <label>Gelir Kategorisi</label>
+                <select id="incCategory" class="form-control" required style="width:100%; padding:8px; background:#0f172a; color:#fff;">
+                    <option value="Danışmanlık">Danışmanlık Geliri</option>
+                    <option value="Ek Satış">Ek Satış Geliri</option>
+                    <option value="Prim">Prim / Komisyon</option>
+                    <option value="Diğer">Diğer Gelirler</option>
+                </select>
+            </div>
+            <div class="form-group mb-3">
+                <label>Tutar (TL)</label>
+                <input type="number" id="incAmount" placeholder="5000" required step="0.01" style="width:100%; padding:8px; background:#0f172a; color:#fff;">
+            </div>
+            <div class="form-group mb-3">
+                <label>Açıklama</label>
+                <input type="text" id="incDescription" placeholder="Örn: Özel danışmanlık hizmet bedeli" required style="width:100%; padding:8px; background:#0f172a; color:#fff;">
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%; background:#10b981; border-color:#10b981;">Geliri Kaydet & Fiş At</button>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL: FATURA KES -->
+<div class="modal-backdrop" id="invoiceModal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <div class="modal-title">🧾 Fatura Oluştur (Create Invoice)</div>
+            <div class="modal-close" onclick="closeModal('invoiceModal')">✕</div>
+        </div>
+        <form id="invoiceForm" onsubmit="submitInvoice(event)">
+            <div class="form-group mb-3">
+                <label>Fatura Türü</label>
+                <select id="invType" class="form-control" style="width:100%; padding:8px; background:#0f172a; color:#fff;">
+                    <option value="SALE">Satış Faturası (Customer Invoice)</option>
+                    <option value="PURCHASE">Alış Faturası (Supplier Invoice)</option>
+                </select>
+            </div>
+            <div class="form-group mb-3">
+                <label>Müşteri / Tedarikçi İsim</label>
+                <input type="text" id="invPartyName" placeholder="Örn: ABC A.Ş." required style="width:100%; padding:8px; background:#0f172a; color:#fff;">
+            </div>
+            <div class="form-group mb-3">
+                <label>Kalem Açıklaması</label>
+                <input type="text" id="invItemDesc" placeholder="Örn: Keten Gömlek Toplu Satış" required style="width:100%; padding:8px; background:#0f172a; color:#fff;">
+            </div>
+            <div style="display:flex; gap:10px;">
+                <div class="form-group mb-3" style="flex:1;">
+                    <label>Adet</label>
+                    <input type="number" id="invQty" value="1" min="1" required style="width:100%; padding:8px; background:#0f172a; color:#fff;">
+                </div>
+                <div class="form-group mb-3" style="flex:2;">
+                    <label>Birim Fiyat (TL)</label>
+                    <input type="number" id="invPrice" placeholder="500" required step="0.01" style="width:100%; padding:8px; background:#0f172a; color:#fff;">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%;">Faturayı Kes & Fiş At</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    lucide.createIcons();
+
+    function openModal(id) {
+        document.getElementById(id).classList.add('active');
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).classList.remove('active');
+    }
+
+    function switchTab(tabId, btn) {
+        document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById(tabId).style.display = 'block';
+        btn.classList.add('active');
+    }
+
+    async function loadFinancialData() {
+        const period = document.getElementById('periodSelect').value;
+        try {
+            // Summary API
+            const resSum = await fetch(`/api/accounting/summary?period=${period}`);
+            const dataSum = await resSum.json();
+            if (dataSum.success) {
+                const s = dataSum.summary;
+                document.getElementById('cardRevenue').textContent = (s.totalRevenue || 0).toLocaleString('tr-TR') + ' TL';
+                document.getElementById('cardExpenses').textContent = (s.totalExpenses || 0).toLocaleString('tr-TR') + ' TL';
+                document.getElementById('cardNetProfit').textContent = (s.netProfit || 0).toLocaleString('tr-TR') + ' TL';
+                document.getElementById('cardProfitMargin').textContent = `%${s.profitMarginPercent || 0} Kâr Marjı`;
+                document.getElementById('cardCash').textContent = (s.cashBalance || 0).toLocaleString('tr-TR') + ' TL';
+                document.getElementById('cardBank').textContent = (s.bankBalance || 0).toLocaleString('tr-TR') + ' TL';
+            }
+
+            // Tax API
+            const resTax = await fetch(`/api/accounting/tax`);
+            const dataTax = await resTax.json();
+            if (dataTax.success) {
+                const t = dataTax.taxSummary;
+                document.getElementById('cardNetKDV').textContent = (t.netKDVToPay || 0).toLocaleString('tr-TR') + ' TL';
+                document.getElementById('cardKDVSub').textContent = `Satış KDV: ${t.salesKDV} TL | İndirilecek: ${t.inputKDV} TL`;
+            }
+
+            // Giderler
+            loadExpenses();
+            // Gelirler
+            loadIncome();
+            // Faturalar
+            loadInvoices();
+            // Yevmiye Fişleri
+            loadTransactions();
+            // PnL & Bilanço
+            loadPnlAndBalance();
+
+        } catch (e) {
+            console.error('Finans verileri yüklenirken hata:', e);
+        }
+    }
+
+    async function loadExpenses() {
+        const res = await fetch('/api/accounting/expenses');
+        const data = await res.json();
+        const body = document.getElementById('expensesTableBody');
+        if (data.success && data.expenses.length > 0) {
+            body.innerHTML = data.expenses.map(e => `
+                <tr>
+                    <td><strong>${e.expense_number}</strong></td>
+                    <td>${e.date}</td>
+                    <td><span class="badge" style="background:#374151;">${e.category}</span></td>
+                    <td>${e.description}</td>
+                    <td><strong style="color:#ef4444;">-${e.amount} TL</strong></td>
+                    <td>${e.tax_amount} TL</td>
+                    <td>${e.payment_method === 'BANK_TRANSFER' ? '🏦 Banka' : '💵 Kasa'}</td>
+                    <td>
+                        <span class="badge ${e.status === 'CONFIRMED' ? 'badge-success' : 'badge-warning'}" style="padding:4px 8px; border-radius:6px; font-size:11px;">
+                            ${e.status === 'CONFIRMED' ? '✅ Onaylı' : '⏳ Taslak Bekliyor'}
+                        </span>
+                    </td>
+                    <td>
+                        ${e.status !== 'CONFIRMED' ? `<button class="btn btn-sm btn-primary" onclick="confirmDraft('EXPENSE', '${e.expense_number}')">Onayla</button>` : '—'}
+                    </td>
+                </tr>
+            `).join('');
+        } else {
+            body.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:20px;">Kayıtlı gider bulunmuyor.</td></tr>';
+        }
+    }
+
+    async function loadIncome() {
+        const res = await fetch('/api/accounting/income');
+        const data = await res.json();
+        const body = document.getElementById('incomeTableBody');
+        if (data.success && data.income.length > 0) {
+            body.innerHTML = data.income.map(i => `
+                <tr>
+                    <td><strong>${i.income_number}</strong></td>
+                    <td>${i.date}</td>
+                    <td><span class="badge" style="background:#065f46; color:#34d399;">${i.category}</span></td>
+                    <td>${i.customer_name || '—'}</td>
+                    <td>${i.description}</td>
+                    <td><strong style="color:#10b981;">+${i.amount} TL</strong></td>
+                    <td>${i.status === 'CONFIRMED' ? '✅ Onaylı' : '⏳ Taslak'}</td>
+                    <td>
+                        ${i.status !== 'CONFIRMED' ? `<button class="btn btn-sm btn-primary" onclick="confirmDraft('INCOME', '${i.income_number}')">Onayla</button>` : '—'}
+                    </td>
+                </tr>
+            `).join('');
+        } else {
+            body.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px;">Kayıtlı harici gelir bulunmuyor.</td></tr>';
+        }
+    }
+
+    async function loadInvoices() {
+        const res = await fetch('/api/accounting/invoices');
+        const data = await res.json();
+        const body = document.getElementById('invoicesTableBody');
+        if (data.success && data.invoices.length > 0) {
+            body.innerHTML = data.invoices.map(inv => `
+                <tr>
+                    <td><strong>${inv.invoice_number}</strong></td>
+                    <td>${inv.type === 'SALE' ? '📤 Satış' : '📥 Alış'}</td>
+                    <td>${inv.party_name}</td>
+                    <td>${inv.date}</td>
+                    <td>${inv.subtotal} TL</td>
+                    <td>${inv.tax_amount} TL</td>
+                    <td><strong>${inv.total_amount} TL</strong></td>
+                    <td>${inv.paid_amount} TL</td>
+                    <td><span class="badge">${inv.status}</span></td>
+                </tr>
+            `).join('');
+        } else {
+            body.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:20px;">Kayıtlı fatura bulunmuyor.</td></tr>';
+        }
+    }
+
+    async function loadTransactions() {
+        const res = await fetch('/api/accounting/transactions');
+        const data = await res.json();
+        const body = document.getElementById('transactionsTableBody');
+        if (data.success && data.transactions.length > 0) {
+            body.innerHTML = data.transactions.map(t => `
+                <tr>
+                    <td><strong>${t.transaction_number}</strong></td>
+                    <td>${t.date}</td>
+                    <td>${t.description}</td>
+                    <td><small>${t.reference_type || ''} #${t.reference_id || ''}</small></td>
+                    <td><strong style="color:#38bdf8;">${t.debit_total} TL</strong></td>
+                    <td><strong style="color:#38bdf8;">${t.credit_total} TL</strong></td>
+                    <td><span class="badge badge-success">✅ Eşit (${t.debit_total} TL)</span></td>
+                </tr>
+            `).join('');
+        } else {
+            body.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px;">Yevmiye kaydı bulunmuyor.</td></tr>';
+        }
+    }
+
+    async function loadPnlAndBalance() {
+        const resPnl = await fetch('/api/accounting/profit-loss');
+        const dataPnl = await resPnl.json();
+        if (dataPnl.success) {
+            const p = dataPnl.report;
+            document.getElementById('pnlReportContent').innerHTML = `
+                <div><strong>Satış Hasılatı:</strong> <span style="color:#10b981;">${p.revenue} TL</span></div>
+                <div><strong>Satılan Mal Maliyeti (COGS):</strong> <span style="color:#ef4444;">-${p.cogs} TL</span></div>
+                <hr style="border-color:rgba(255,255,255,0.1);">
+                <div><strong>Brüt Kâr:</strong> <strong>${p.grossProfit} TL</strong> (%${p.grossMarginPercent} Brüt Marj)</div>
+                <div><strong>Faaliyet Giderleri:</strong> <span style="color:#ef4444;">-${p.operatingExpenses} TL</span></div>
+                <hr style="border-color:rgba(255,255,255,0.1);">
+                <div style="font-size:16px;"><strong>NET KÂR:</strong> <strong style="color:#38bdf8;">${p.netProfit} TL</strong> (%${p.netMarginPercent} Net Marj)</div>
+            `;
+        }
+
+        const resBal = await fetch('/api/accounting/balance-sheet');
+        const dataBal = await resBal.json();
+        if (dataBal.success) {
+            const b = dataBal.balanceSheet;
+            document.getElementById('balanceSheetContent').innerHTML = `
+                <div><strong>Dönen Varlıklar:</strong> ${b.assets.totalAssets} TL</div>
+                <div style="padding-left:15px; color:#94a3b8; font-size:12px;">
+                    • Nakit Kasa: ${b.assets.cash} TL<br>
+                    • Bankalar: ${b.assets.bank} TL<br>
+                    • Alacaklar: ${b.assets.receivables} TL<br>
+                    • Stok Varlığı: ${b.assets.inventory} TL
+                </div>
+                <hr style="border-color:rgba(255,255,255,0.1);">
+                <div><strong>Yükümlülükler / Borçlar:</strong> ${b.liabilities.totalLiabilities} TL</div>
+                <hr style="border-color:rgba(255,255,255,0.1);">
+                <div><strong>Özkaynaklar:</strong> <strong>${b.equity.totalEquity} TL</strong></div>
+            `;
+        }
+    }
+
+    async function submitExpense(e) {
+        e.preventDefault();
+        const payload = {
+            category: document.getElementById('expCategory').value,
+            amount: Number(document.getElementById('expAmount').value),
+            paymentMethod: document.getElementById('expPaymentMethod').value,
+            description: document.getElementById('expDescription').value
+        };
+
+        const res = await fetch('/api/accounting/expenses', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert('✅ Gider kaydı ve yevmiye fişi başarıyla oluşturuldu!');
+            closeModal('expenseModal');
+            loadFinancialData();
+        } else {
+            alert('❌ Hata: ' + data.error);
+        }
+    }
+
+    async function submitIncome(e) {
+        e.preventDefault();
+        const payload = {
+            category: document.getElementById('incCategory').value,
+            amount: Number(document.getElementById('incAmount').value),
+            description: document.getElementById('incDescription').value,
+            paymentMethod: 'CASH'
+        };
+
+        const res = await fetch('/api/accounting/income', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert('✅ Harici gelir kaydı ve yevmiye fişi başarıyla oluşturuldu!');
+            closeModal('incomeModal');
+            loadFinancialData();
+        } else {
+            alert('❌ Hata: ' + data.error);
+        }
+    }
+
+    async function submitInvoice(e) {
+        e.preventDefault();
+        const payload = {
+            type: document.getElementById('invType').value,
+            partyName: document.getElementById('invPartyName').value,
+            items: [
+                {
+                    description: document.getElementById('invItemDesc').value,
+                    quantity: Number(document.getElementById('invQty').value),
+                    unitPrice: Number(document.getElementById('invPrice').value),
+                    taxRate: 20
+                }
+            ]
+        };
+
+        const res = await fetch('/api/accounting/invoices', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert('✅ Fatura ve yevmiye kaydı başarıyla oluşturuldu!');
+            closeModal('invoiceModal');
+            loadFinancialData();
+        } else {
+            alert('❌ Hata: ' + data.error);
+        }
+    }
+
+    async function confirmDraft(type, id) {
+        if (!confirm('Bu taslağı onaylayıp muhasebeleştirmek istediğinize emin misiniz?')) return;
+        const res = await fetch('/api/accounting/confirm-draft', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ type, id })
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert('✅ Taslak onaylandı!');
+            loadFinancialData();
+        } else {
+            alert('❌ Hata: ' + data.error);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadFinancialData);
+</script>
+</body>
+</html>

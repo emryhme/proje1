@@ -11,6 +11,7 @@ const stock_service_1 = require("./stock.service");
 const google_sheets_service_1 = require("./google-sheets.service");
 const telegram_service_1 = require("./telegram.service");
 const facebook_service_1 = require("./facebook.service");
+const accounting_service_1 = require("./accounting.service");
 /**
  * SQLite (app.db) Destekli Ultra Hızlı Sipariş Servisi
  */
@@ -216,11 +217,18 @@ class OrderService {
                         console.warn(`[OrderService] ⚠️ Siparişte (ID: ${orderId}) sender_id bilgisi bulunamadığı için DM yollanamadı.`);
                     }
                 }
-                // 2. Sipariş ONAYLANDIYSA (OK): Müşteriye "Siparişiniz Onaylandı" Mesajı Gönder!
+                // 2. Sipariş ONAYLANDIYSA (OK): Müşteriye "Siparişiniz Onaylandı" Mesajı Gönder & Otomatik Muhasebeleştir!
                 else if (status === 'OK') {
                     if (prevStatus === 'DEC') {
                         console.log(`[OrderService] 📦 Reddedilen sipariş onaylandı, ${targetProductCode} (${existingOrder.size}) stoğundan -${qty} tekrar düşülüyor...`);
                         await stock_service_1.StockService.deductStock(targetProductCode, qty, existingOrder.size);
+                    }
+                    // Otomatik Çift Taraflı Muhasebe Kaydı (Idempotent - Double Entry)
+                    try {
+                        accounting_service_1.AccountingService.recordOrderFinancials(orderId, 'SYSTEM:ORDER_APPROVAL');
+                    }
+                    catch (accErr) {
+                        console.error('[OrderService Accounting Hook Error]:', accErr.message);
                     }
                     // Müşteriye "Siparişiniz Onaylandı" Bildirim Mesajı Gönder (Telegram & n8n)
                     const fullOrder = {

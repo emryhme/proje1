@@ -187,6 +187,22 @@ app.post('/api/settings', (req, res) => {
     }
 });
 const admin_copilot_service_1 = require("./services/admin-copilot.service");
+const accounting_controller_1 = require("./controllers/accounting.controller");
+// Muhasebe & Finans Yönetimi API End-point'leri
+app.get('/api/accounting/summary', accounting_controller_1.AccountingController.getSummary);
+app.get('/api/accounting/profit-loss', accounting_controller_1.AccountingController.getProfitLoss);
+app.get('/api/accounting/balance-sheet', accounting_controller_1.AccountingController.getBalanceSheet);
+app.get('/api/accounting/tax', accounting_controller_1.AccountingController.getTaxSummary);
+app.get('/api/accounting/product-profitability', accounting_controller_1.AccountingController.getProductProfitability);
+app.get('/api/accounting/expenses', accounting_controller_1.AccountingController.getExpenses);
+app.post('/api/accounting/expenses', accounting_controller_1.AccountingController.createExpense);
+app.get('/api/accounting/income', accounting_controller_1.AccountingController.getIncome);
+app.post('/api/accounting/income', accounting_controller_1.AccountingController.createIncome);
+app.post('/api/accounting/confirm-draft', accounting_controller_1.AccountingController.confirmDraft);
+app.get('/api/accounting/invoices', accounting_controller_1.AccountingController.getInvoices);
+app.post('/api/accounting/invoices', accounting_controller_1.AccountingController.createInvoice);
+app.post('/api/accounting/payments', accounting_controller_1.AccountingController.recordPayment);
+app.get('/api/accounting/transactions', accounting_controller_1.AccountingController.getTransactions);
 // Admin Copilot Chat Endpoint
 app.post('/api/ai/admin-copilot', async (req, res) => {
     try {
