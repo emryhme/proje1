@@ -9,6 +9,7 @@ const instagram_message_service_1 = require("../services/instagram-message.servi
 const cart_service_1 = require("../services/cart.service");
 const stock_service_1 = require("../services/stock.service");
 const order_service_1 = require("../services/order.service");
+const message_buffer_service_1 = require("../services/message-buffer.service");
 function stripEmojis(str) {
     if (!str)
         return '';
@@ -73,9 +74,26 @@ class WebhookController {
                         }
                     }
                 }
-                if (payload || incomingText.trim()) {
-                    console.log(`[WebhookController Messaging] 🚀 İşleniyor (senderId: ${senderId}): payload="${payload}", text="${incomingText}"`);
+                if (!senderId)
+                    continue;
+                // ─────────────────────────────────────────
+                // POSTBACK / QUICK REPLY → Buffer bypass
+                // Interactive butonlar (ADD_TO_CART, PRODUCT_DETAIL vs.) anında işlenir.
+                // ─────────────────────────────────────────
+                if (payload && payload.trim()) {
+                    console.log(`[WebhookController Messaging] POSTBACK (senderId: ${senderId}): payload="${payload}"`);
                     WebhookController.processEventOrReply(senderId, incomingText.trim(), payload.trim());
+                    continue;
+                }
+                // ─────────────────────────────────────────
+                // PLAIN TEXT → MessageBuffer debounce katmanı
+                // ─────────────────────────────────────────
+                if (incomingText.trim()) {
+                    console.log(`[WebhookController Messaging] TEXT (senderId: ${senderId}): text="${incomingText}"`);
+                    message_buffer_service_1.MessageBufferService.addMessage('default', // storeId (single-tenant, multi-tenant geçişte burası değişir)
+                    'instagram', senderId, incomingText.trim(), async (convKey, storeId, channel, userId, combinedText) => {
+                        await WebhookController.processEventOrReply(userId, combinedText, '');
+                    });
                 }
             }
             // 2. Format: entry.changes (Instagram Graph API Alternate Webhook)
@@ -91,8 +109,10 @@ class WebhookController {
                 if (!senderId)
                     continue;
                 if (incomingText.trim()) {
-                    console.log(`[WebhookController Changes] 🚀 İşleniyor (senderId: ${senderId}): "${incomingText}"`);
-                    WebhookController.processEventOrReply(senderId, incomingText.trim(), '');
+                    console.log(`[WebhookController Changes] TEXT (senderId: ${senderId}): "${incomingText}"`);
+                    message_buffer_service_1.MessageBufferService.addMessage('default', 'instagram', senderId, incomingText.trim(), async (convKey, storeId, channel, userId, combinedText) => {
+                        await WebhookController.processEventOrReply(userId, combinedText, '');
+                    });
                 }
             }
         }

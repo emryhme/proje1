@@ -7,6 +7,7 @@ import { InstagramMessageService } from '../services/instagram-message.service';
 import { CartService } from '../services/cart.service';
 import { StockService } from '../services/stock.service';
 import { OrderService } from '../services/order.service';
+import { MessageBufferService, buildConversationKey } from '../services/message-buffer.service';
 
 function stripEmojis(str: string): string {
   if (!str) return '';
@@ -79,9 +80,32 @@ export class WebhookController {
           }
         }
 
-        if (payload || incomingText.trim()) {
-          console.log(`[WebhookController Messaging] 🚀 İşleniyor (senderId: ${senderId}): payload="${payload}", text="${incomingText}"`);
+        if (!senderId) continue;
+
+        // ─────────────────────────────────────────
+        // POSTBACK / QUICK REPLY → Buffer bypass
+        // Interactive butonlar (ADD_TO_CART, PRODUCT_DETAIL vs.) anında işlenir.
+        // ─────────────────────────────────────────
+        if (payload && payload.trim()) {
+          console.log(`[WebhookController Messaging] POSTBACK (senderId: ${senderId}): payload="${payload}"`);
           WebhookController.processEventOrReply(senderId, incomingText.trim(), payload.trim());
+          continue;
+        }
+
+        // ─────────────────────────────────────────
+        // PLAIN TEXT → MessageBuffer debounce katmanı
+        // ─────────────────────────────────────────
+        if (incomingText.trim()) {
+          console.log(`[WebhookController Messaging] TEXT (senderId: ${senderId}): text="${incomingText}"`);
+          MessageBufferService.addMessage(
+            'default',      // storeId (single-tenant, multi-tenant geçişte burası değişir)
+            'instagram',
+            senderId,
+            incomingText.trim(),
+            async (convKey, storeId, channel, userId, combinedText) => {
+              await WebhookController.processEventOrReply(userId, combinedText, '');
+            }
+          );
         }
       }
 
@@ -101,8 +125,16 @@ export class WebhookController {
         if (!senderId) continue;
 
         if (incomingText.trim()) {
-          console.log(`[WebhookController Changes] 🚀 İşleniyor (senderId: ${senderId}): "${incomingText}"`);
-          WebhookController.processEventOrReply(senderId, incomingText.trim(), '');
+          console.log(`[WebhookController Changes] TEXT (senderId: ${senderId}): "${incomingText}"`);
+          MessageBufferService.addMessage(
+            'default',
+            'instagram',
+            senderId,
+            incomingText.trim(),
+            async (convKey, storeId, channel, userId, combinedText) => {
+              await WebhookController.processEventOrReply(userId, combinedText, '');
+            }
+          );
         }
       }
     }

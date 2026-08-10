@@ -14,5 +14,6 @@ export const env = {
   geminiApiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '',
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || '',
   telegramChatId: process.env.TELEGRAM_CHAT_ID || '7659971499',
-  n8nWebhookUrl: process.env.N8N_WEBHOOK_URL || process.env.N8N_ORDER_APPROVED_WEBHOOK_URL || ''
+  n8nWebhookUrl: process.env.N8N_WEBHOOK_URL || process.env.N8N_ORDER_APPROVED_WEBHOOK_URL || '',
+  aiMessageBufferMs: parseInt(process.env.AI_MESSAGE_BUFFER_MS || '1500', 10)
 };
