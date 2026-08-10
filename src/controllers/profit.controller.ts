@@ -24,6 +24,70 @@ export class ProfitController {
   };
 
   /**
+   * Brüt Kâr vs İşletme Giderleri vs Net İşletme Kârı Özeti
+   * GET /api/profit/net-summary
+   */
+  public static getNetSummary = async (req: Request, res: Response) => {
+    try {
+      const { period, startDate, endDate } = req.query;
+      const netSummary = ProfitService.getNetBusinessProfitSummary(
+        String(period || 'this_month'),
+        startDate ? String(startDate) : undefined,
+        endDate ? String(endDate) : undefined
+      );
+
+      res.json({ success: true, netSummary });
+    } catch (e: any) {
+      console.error('[ProfitController.getNetSummary Error]:', e);
+      res.status(500).json({ success: false, error: e.message });
+    }
+  };
+
+  /**
+   * Depodaki Mevcut Stokların Potansiyel Kâr Değeri
+   * GET /api/profit/inventory-potential
+   */
+  public static getInventoryPotential = async (req: Request, res: Response) => {
+    try {
+      const potential = ProfitService.getInventoryProfitPotential();
+      res.json({ success: true, potential });
+    } catch (e: any) {
+      console.error('[ProfitController.getInventoryPotential Error]:', e);
+      res.status(500).json({ success: false, error: e.message });
+    }
+  };
+
+  /**
+   * Düşük Marjlı Ürünler Uyarısı (%15 Altı)
+   * GET /api/profit/low-margin
+   */
+  public static getLowMarginProducts = async (req: Request, res: Response) => {
+    try {
+      const threshold = Number(req.query.threshold) || 15;
+      const products = ProfitService.getLowMarginProducts(threshold);
+      res.json({ success: true, products, count: products.length });
+    } catch (e: any) {
+      console.error('[ProfitController.getLowMarginProducts Error]:', e);
+      res.status(500).json({ success: false, error: e.message });
+    }
+  };
+
+  /**
+   * Giderlerin Kategoriye Göre Dağılımı
+   * GET /api/profit/expense-breakdown
+   */
+  public static getExpenseBreakdown = async (req: Request, res: Response) => {
+    try {
+      const period = String(req.query.period || 'this_month');
+      const breakdown = ProfitService.getExpenseCategoryBreakdown(period);
+      res.json({ success: true, breakdown });
+    } catch (e: any) {
+      console.error('[ProfitController.getExpenseBreakdown Error]:', e);
+      res.status(500).json({ success: false, error: e.message });
+    }
+  };
+
+  /**
    * Ürün Kârlılık ve Adet Analizi Tablosu
    * GET /api/profit/products
    */

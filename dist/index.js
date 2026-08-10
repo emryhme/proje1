@@ -206,9 +206,46 @@ app.get('/api/accounting/transactions', accounting_controller_1.AccountingContro
 const profit_controller_1 = require("./controllers/profit.controller");
 // Ürün Maliyeti, Satış ve Gerçek Kâr Analizi API End-point'leri
 app.get('/api/profit/summary', profit_controller_1.ProfitController.getSummary);
+app.get('/api/profit/net-summary', profit_controller_1.ProfitController.getNetSummary);
+app.get('/api/profit/inventory-potential', profit_controller_1.ProfitController.getInventoryPotential);
+app.get('/api/profit/low-margin', profit_controller_1.ProfitController.getLowMarginProducts);
+app.get('/api/profit/expense-breakdown', profit_controller_1.ProfitController.getExpenseBreakdown);
 app.get('/api/profit/products', profit_controller_1.ProfitController.getProducts);
 app.get('/api/profit/chart', profit_controller_1.ProfitController.getChart);
 app.get('/api/profit/forecast', profit_controller_1.ProfitController.getForecast);
+// Demo Sipariş Tohumlama End-point'i (Tek Tıkla 5 Örnek Sipariş Oluşturur)
+app.all('/api/admin/seed-demo-orders', async (req, res) => {
+    try {
+        const stmt = db_1.db.prepare(`
+      INSERT INTO orders (order_id, first_name, last_name, customer_phone, address, product_code, product_name, size, quantity, unit_price, shipping_fee, discount, total_price, unit_cost_price, total_cost, profit, status, sender_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+        const now = new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' });
+        const timeStamp = Date.now().toString().slice(-4);
+        const ordersToCreate = [
+            { id: `ORD-LIVE-101-${timeStamp}`, fn: 'Ahmet', ln: 'Kaya', phone: '05321112233', addr: 'Kadıköy, İstanbul', code: 'KGMLW-M', name: 'KUMAŞ GÖMLEK', size: 'M', qty: 2, price: 299, cost: 150, status: 'OK' },
+            { id: `ORD-LIVE-102-${timeStamp}`, fn: 'Ayşe', ln: 'Demir', phone: '05442223344', addr: 'Çankaya, Ankara', code: 'KGMLW-S', name: 'KUMAŞ GÖMLEK', size: 'S', qty: 1, price: 299, cost: 150, status: 'OK' },
+            { id: `ORD-LIVE-103-${timeStamp}`, fn: 'Mehmet', ln: 'Şahin', phone: '05553334455', addr: 'Karşıyaka, İzmir', code: 'TSW-BLACK', name: 'OVERSIZE T-SHIRT', size: 'L', qty: 3, price: 199, cost: 90, status: 'OK' },
+            { id: `ORD-LIVE-104-${timeStamp}`, fn: 'Zeynep', ln: 'Çelik', phone: '05334445566', addr: 'Nilüfer, Bursa', code: 'KGMLW-L', name: 'KUMAŞ GÖMLEK', size: 'L', qty: 1, price: 299, cost: 150, status: 'BEKLEMEDE' },
+            { id: `ORD-LIVE-105-${timeStamp}`, fn: 'Caner', ln: 'Öztürk', phone: '05425556677', addr: 'Muratpaşa, Antalya', code: 'TSW-WHITE', name: 'OVERSIZE T-SHIRT', size: 'XL', qty: 2, price: 199, cost: 90, status: 'BEKLEMEDE' }
+        ];
+        let createdCount = 0;
+        ordersToCreate.forEach(o => {
+            const totPrice = o.qty * o.price;
+            const totCost = o.qty * o.cost;
+            const prof = totPrice - totCost;
+            try {
+                stmt.run(o.id, o.fn, o.ln, o.phone, o.addr, o.code, o.name, o.size, o.qty, o.price, 0, 0, totPrice, o.cost, totCost, prof, o.status, 'DEMO_SEED', now);
+                createdCount++;
+            }
+            catch (e) { }
+        });
+        res.json({ success: true, message: `✅ ${createdCount} adet demo sipariş başarıyla veritabanına eklendi!`, ordersCount: createdCount });
+    }
+    catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
 // Admin Copilot Chat Endpoint
 app.post('/api/ai/admin-copilot', async (req, res) => {
     try {
