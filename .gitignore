@@ -3,3 +3,7 @@ node_modules/
 .env
 service-account.json
 barons.db*
+*.db
+*.sqlite*
+debug-report-*.md
+

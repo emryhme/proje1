@@ -8,8 +8,10 @@ const env_1 = require("../config/env");
 const stock_service_1 = require("./stock.service");
 const order_service_1 = require("./order.service");
 const telegram_service_1 = require("./telegram.service");
+const facebook_service_1 = require("./facebook.service");
+const db_1 = require("../database/db");
 /**
- * n8n Multi-Agent Hiyerarşisi ve Akıllı Hafıza Korumalı LangChain JS Servisi
+ * n8n Multi-Agent Hiyerarşisi ve Akıllı Hafıza Korumalı LangChain JS Servisi (Sepet ve Kişiye Özel İndirim Destekli)
  */
 class AIService {
     static sessions = new Map();
@@ -18,13 +20,15 @@ class AIService {
     }
     static getSessionContext(senderId) {
         if (!this.sessions.has(senderId)) {
-            this.sessions.set(senderId, { history: [] });
+            this.sessions.set(senderId, { history: [], cart: [] });
         }
-        return this.sessions.get(senderId);
+        const ctx = this.sessions.get(senderId);
+        if (!ctx.cart)
+            ctx.cart = [];
+        return ctx;
     }
     /**
-     * Yapay Zeka Destekli Akıllı Veri Ayıklama Motoru (AI Extraction - F.R.I.D.A.Y.)
-     * Statik regex kuralları yerine GPT-4o-mini ile isim, telefon, adres, ürün kodu ve beden ayıklar.
+     * Yapay Zeka Destekli Akıllı Veri Ayıklama Motoru (AI Extractor - F.R.I.D.A.Y.)
      */
     static async extractSessionDataWithAI(senderId, userText, apiKey) {
         const ctx = this.getSessionContext(senderId);
@@ -36,7 +40,7 @@ class AIService {
             });
             const extractionPrompt = `
 Sen BARON'S SILLAGE için Türkçe Yapay Zeka Veri Ayıklayıcısısın (AI Extractor).
-Müşterinin gönderdiği mesajdan ad-soyad, telefon, adres, ürün kodu ve beden verilerini eksiksiz ayıkla.
+Müşterinin gönderdiği mesajdan ad-soyad, telefon, adres, ürün kodu, beden ve adet verilerini ayıkla.
 
 Müşteri Mesajı: "${userText}"
 
@@ -46,7 +50,8 @@ Yalnızca aşağıdaki JSON yapısını döndür (bilinmeyen alanlar için null 
   "customerPhone": "Müşterinin 10 veya 11 haneli Telefon Numarası (Örn: 05428523712, bulunamazsa null)",
   "address": "Müşterinin Açık Teslimat Adresi (Örn: Süleyman Mahallesi 1010 Sokak No 7, bulunamazsa null)",
   "productCode": "Varsa Ürün Kodu (Örn: KGMLW, TSW, NDL41, bulunamazsa null)",
-  "size": "Varsa Beden (Örn: S, M, L, XL, 41, bulunamazsa null)"
+  "size": "Varsa Beden (Örn: S, M, L, XL, 41, bulunamazsa null)",
+  "quantity": "Varsa Adet Sayısı (Örn: 1, 2, 3, bulunamazsa null)"
 }
 `;
             const response = await extractorModel.invoke([new messages_1.HumanMessage(extractionPrompt)]);
@@ -69,6 +74,9 @@ Yalnızca aşağıdaki JSON yapısını döndür (bilinmeyen alanlar için null 
                 if (data.size && data.size !== 'null') {
                     ctx.size = data.size.trim().toUpperCase();
                 }
+                if (data.quantity && data.quantity !== 'null' && !isNaN(Number(data.quantity))) {
+                    ctx.quantity = Number(data.quantity);
+                }
             }
         }
         catch (e) {
@@ -76,14 +84,14 @@ Yalnızca aşağıdaki JSON yapısını döndür (bilinmeyen alanlar için null 
         }
     }
     /**
-     * 1. Alt Düğüm Araçlarını (Leaf Tools) Tanımlar
+     * Alt Düğüm Araçlarını Tanımlar
      */
     static createLeafTools(senderId) {
         const ctx = this.getSessionContext(senderId);
-        // STOK Tool (Google Sheets Baron-DB)
+        // STOK Tool
         const stokTool = new tools_1.DynamicTool({
             name: 'STOK',
-            description: 'Ürün kodu yada ürün ismiyle stok sorgulaması yap.',
+            description: 'Ürün kodu, BEDEN ve ADET bilgisi mevcutsa stok kontrolü yapar.',
             func: async (input) => {
                 try {
                     const query = input || ctx.productCode || '';
@@ -99,6 +107,7 @@ Yalnızca aşağıdaki JSON yapısını döndür (bilinmeyen alanlar için null 
                         productName: result.product?.name,
                         productCode: result.product?.productCode || ctx.productCode,
                         size: result.product?.size || ctx.size,
+                        price: result.product?.price || 299,
                         availableSizes: result.product?.availableSizes,
                         message: result.inStock ? 'Stokta mevcuttur.' : 'Stokta kalmamıştır.'
                     });
@@ -108,10 +117,10 @@ Yalnızca aşağıdaki JSON yapısını döndür (bilinmeyen alanlar için null 
                 }
             }
         });
-        // KAYIT Tool (Google Sheets SİPARİŞLER)
-        const kayitTool = new tools_1.DynamicTool({
-            name: 'KAYIT',
-            description: 'SİPARİŞ DETAYLARINI BURAYA KAYDEDER. JSON: {"customerName":"...","customerPhone":"...","address":"...","productCode":"...","size":"...","quantity":1}',
+        // SEPETE_EKLE Tool
+        const sepeteEkleTool = new tools_1.DynamicTool({
+            name: 'SEPETE_EKLE',
+            description: 'Müşterinin istediği ürünü, bedenini ve adetini sepete ekler.',
             func: async (input) => {
                 try {
                     let data = {};
@@ -121,58 +130,69 @@ Yalnızca aşağıdaki JSON yapısını döndür (bilinmeyen alanlar için null 
                     catch {
                         data = {};
                     }
-                    // Esnek Parametre Haritalama & Hafızadan Kurtarma (Fallback)
-                    let rawName = data.customerName || data.fullName || data.full_name || data.name || data.customer || '';
-                    if (ctx.customerName && ctx.customerName !== 'Müşteri') {
-                        rawName = ctx.customerName;
+                    const pCode = (data.productCode || ctx.productCode || 'KGMLW').toUpperCase();
+                    const pSize = (data.size || ctx.size || 'M').toUpperCase();
+                    const pQty = Number(data.quantity) || ctx.quantity || 1;
+                    const prod = db_1.db.prepare('SELECT * FROM products WHERE product_code = ? OR short_code = ?').get(pCode, pCode);
+                    const unitPrice = prod?.price || 299;
+                    const productName = prod?.name || pCode;
+                    const stockRes = await stock_service_1.StockService.checkStock(pCode);
+                    if (!stockRes.inStock) {
+                        return JSON.stringify({ success: false, message: `${productName} (${pSize}) stokta tükendiği için sepete eklenemedi.` });
                     }
-                    else if (!rawName || rawName.trim() === 'Müşteri' || rawName.trim().length <= 1) {
-                        rawName = ctx.customerName || 'Müşteri';
+                    const existingIdx = ctx.cart.findIndex(i => i.productCode === pCode && i.size === pSize);
+                    if (existingIdx >= 0) {
+                        ctx.cart[existingIdx].quantity += pQty;
                     }
-                    const finalCustomerName = rawName;
-                    let rawAddress = data.address || data.deliveryAddress || data.delivery_address || '';
-                    if (ctx.address && ctx.address !== 'Adres Belirtilmedi') {
-                        rawAddress = ctx.address;
+                    else {
+                        ctx.cart.push({
+                            productCode: pCode,
+                            productName: productName,
+                            size: pSize,
+                            quantity: pQty,
+                            unitPrice: unitPrice
+                        });
                     }
-                    else if (!rawAddress || rawAddress.trim() === 'Adres Belirtilmedi') {
-                        rawAddress = ctx.address || 'Adres Belirtilmedi';
-                    }
-                    const finalAddress = rawAddress;
-                    let rawPhone = data.customerPhone || data.phone || data.customer_phone || data.phoneNumber || data.phone_number || '';
-                    if (ctx.customerPhone) {
-                        rawPhone = ctx.customerPhone;
-                    }
-                    else if (!rawPhone || rawPhone === '05550000000' || rawPhone === '05551234567') {
-                        rawPhone = ctx.customerPhone || rawPhone || '05550000000';
-                    }
-                    const finalPhone = rawPhone;
-                    let rawCode = data.productCode || data.product_code || data.code || data.product || '';
-                    if (!rawCode || rawCode === 'URUN') {
-                        rawCode = ctx.productCode || 'KGMLW';
-                    }
-                    const finalProductCode = rawCode;
-                    const finalSize = data.size || data.beden || ctx.size || 'M';
-                    const order = await order_service_1.OrderService.createOrder({
-                        customerName: finalCustomerName,
-                        customerPhone: finalPhone,
-                        address: finalAddress,
-                        productCode: finalProductCode,
-                        productName: finalProductCode,
-                        size: finalSize,
-                        quantity: Number(data.quantity) || 1,
-                        senderId: senderId
+                    const cartSubtotal = ctx.cart.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
+                    const shippingFeeEstimate = cartSubtotal >= 1500 ? 0 : 49;
+                    const totalEstimate = cartSubtotal + shippingFeeEstimate;
+                    return JSON.stringify({
+                        success: true,
+                        message: `${productName} (Beden: ${pSize}, Adet: ${pQty}) sepete eklendi!`,
+                        cartItemCount: ctx.cart.length,
+                        cartTotalItems: ctx.cart.reduce((sum, i) => sum + i.quantity, 0),
+                        cartSubtotal: cartSubtotal,
+                        shippingFeeEstimate: shippingFeeEstimate,
+                        totalEstimate: totalEstimate,
+                        priceMessage: `Ara Toplam: ${cartSubtotal.toFixed(2)} TL | Kargo: ${shippingFeeEstimate === 0 ? 'ÜCRETSİZ' : shippingFeeEstimate + ' TL'} | Tahmini Toplam: ${totalEstimate.toFixed(2)} TL`,
+                        cart: ctx.cart
                     });
-                    return JSON.stringify({ success: true, orderId: order.orderId, productCode: order.productCode });
                 }
                 catch (e) {
                     return JSON.stringify({ error: e.message });
                 }
             }
         });
-        // MESAJ Tool (Telegram Bildirimi)
-        const mesajTool = new tools_1.DynamicTool({
-            name: 'MESAJ',
-            description: 'İşletme sahibine Telegram üzerinden HTML formatında bildirim gönderir.',
+        // SEPET_GORUNTULE Tool
+        const sepetGoruntuleTool = new tools_1.DynamicTool({
+            name: 'SEPET_GORUNTULE',
+            description: 'Müşterinin sepetindeki tüm ürünleri ve ara toplamı listeler.',
+            func: async () => {
+                if (!ctx.cart || ctx.cart.length === 0) {
+                    return JSON.stringify({ cartEmpty: true, message: 'Sepetiniz şu an boş.' });
+                }
+                const cartSubtotal = ctx.cart.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
+                return JSON.stringify({
+                    cartEmpty: false,
+                    cart: ctx.cart,
+                    cartSubtotal: cartSubtotal
+                });
+            }
+        });
+        // KAYIT Tool (Instagram ID'ye Özel Sadakat İndirimi & Ödül Tanımlama Destekli)
+        const kayitTool = new tools_1.DynamicTool({
+            name: 'KAYIT',
+            description: 'Müşterinin 3 Bilgisi (İsim, Tel, Adres) Tamamlandıysa Toplu Siparişi Oluşturur.',
             func: async (input) => {
                 try {
                     let data = {};
@@ -180,8 +200,138 @@ Yalnızca aşağıdaki JSON yapısını döndür (bilinmeyen alanlar için null 
                         data = typeof input === 'object' ? input : JSON.parse(input);
                     }
                     catch {
-                        data = { orderId: input };
+                        data = {};
                     }
+                    const customerName = data.customerName || ctx.customerName;
+                    const customerPhone = data.customerPhone || ctx.customerPhone;
+                    const address = data.address || ctx.address;
+                    if (!ctx.cart || ctx.cart.length === 0) {
+                        const pCode = (data.productCode || ctx.productCode || 'KGMLW').toUpperCase();
+                        const pSize = (data.size || ctx.size || 'M').toUpperCase();
+                        const pQty = Number(data.quantity) || ctx.quantity || 1;
+                        const prod = db_1.db.prepare('SELECT * FROM products WHERE product_code = ? OR short_code = ?').get(pCode, pCode);
+                        ctx.cart.push({
+                            productCode: pCode,
+                            productName: prod?.name || pCode,
+                            size: pSize,
+                            quantity: pQty,
+                            unitPrice: prod?.price || 299
+                        });
+                    }
+                    const missingFields = [];
+                    if (!customerName || customerName.trim().length <= 1)
+                        missingFields.push('İsim Soyisim');
+                    if (!customerPhone || customerPhone.trim().length < 10)
+                        missingFields.push('Telefon Numarası');
+                    if (!address || address.trim().length < 3)
+                        missingFields.push('Teslimat Adresi');
+                    if (missingFields.length > 0) {
+                        return JSON.stringify({
+                            success: false,
+                            orderCreated: false,
+                            missingFields: missingFields,
+                            message: `Sipariş oluşturulamadı! Eksik bilgiler: ${missingFields.join(', ')}. Lütfen bu bilgileri müşteriden talep edin.`
+                        });
+                    }
+                    const subtotal = ctx.cart.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
+                    const totalQuantity = ctx.cart.reduce((sum, item) => sum + item.quantity, 0);
+                    // Ayarlardan Kargo Ücreti
+                    const shippingSetting = db_1.db.prepare("SELECT value FROM settings WHERE key = 'shipping_fee'").get();
+                    const thresholdSetting = db_1.db.prepare("SELECT value FROM settings WHERE key = 'free_shipping_threshold'").get();
+                    const loyaltyThresholdSetting = db_1.db.prepare("SELECT value FROM settings WHERE key = 'loyalty_threshold'").get();
+                    let shippingFee = Number(shippingSetting?.value || 49);
+                    const freeThreshold = Number(thresholdSetting?.value || 1500);
+                    const loyaltyThreshold = Number(loyaltyThresholdSetting?.value || 2000);
+                    if (subtotal >= freeThreshold) {
+                        shippingFee = 0; // Ücretsiz Kargo
+                    }
+                    let discount = 0;
+                    let appliedLoyaltyReward = false;
+                    // 1. Müşterinin Instagram ID'sine tanımlı kullanılmamış %20 VIP Ödülü var mı?
+                    const userReward = db_1.db.prepare('SELECT * FROM user_rewards WHERE sender_id = ? AND is_used = 0 ORDER BY id DESC LIMIT 1').get(senderId);
+                    if (userReward) {
+                        // Müşteriye özel %20VIP İndirimi uygula!
+                        discount = (subtotal * (userReward.discount_percent / 100));
+                        appliedLoyaltyReward = true;
+                        // Ödülü kullanıldı olarak işaretle
+                        db_1.db.prepare('UPDATE user_rewards SET is_used = 1, used_at = CURRENT_TIMESTAMP WHERE id = ?').run(userReward.id);
+                    }
+                    else {
+                        // Standart Aktif Kampanyaları Uygula (Örn BARONS10)
+                        const activeCampaigns = db_1.db.prepare('SELECT * FROM campaigns WHERE active = 1').all();
+                        for (const c of activeCampaigns) {
+                            if (c.code === 'BARONS10') {
+                                discount += (subtotal * 0.10);
+                            }
+                        }
+                    }
+                    const totalPrice = Math.max(0, subtotal + shippingFee - discount);
+                    // 2. Satıcı İzni Varsa (auto_vip_reward_enabled === '1') ve Sipariş Tutarı Eşik Değeri Geçtiyse Otomatik Ödül Tanımla!
+                    let earnedNewLoyaltyReward = false;
+                    const autoVipSetting = db_1.db.prepare("SELECT value FROM settings WHERE key = 'auto_vip_reward_enabled'").get();
+                    const isAutoVipEnabled = autoVipSetting && (autoVipSetting.value === '1' || autoVipSetting.value === 'true');
+                    if (isAutoVipEnabled && subtotal >= loyaltyThreshold) {
+                        // Müşteriye yeni VIP Ödülü ver (Ödül Kodu: YINEBEKLERIZ)
+                        const rewardCode = 'YINEBEKLERIZ';
+                        db_1.db.prepare(`
+              INSERT INTO user_rewards (sender_id, reward_code, discount_percent, min_qualifying_amount)
+              VALUES (?, ?, 20.0, ?)
+            `).run(senderId, rewardCode, loyaltyThreshold);
+                        earnedNewLoyaltyReward = true;
+                        // Instagram DM Otomatik Bildirimi Gönder
+                        const autoDmText = `🎉 TEBRİKLER / VIP ÖDÜL KAZANDINIZ!\nSayın ${customerName.trim()}, instagram profilinize özel %20 VIP İNDİRİM tanımlanmıştır! (Ödül Kodu: ${rewardCode})\nBir sonraki siparişinizde bu indirim otomatik olarak uygulanacaktır. Keyifli alışverişler dileriz! 🎁✨`;
+                        facebook_service_1.FacebookService.sendMessage(senderId, autoDmText).catch(e => console.error('[Auto Reward DM Error]:', e.message));
+                    }
+                    const combinedProductCode = ctx.cart.map(i => `${i.productCode} (${i.size}) x${i.quantity}`).join(', ');
+                    const combinedProductName = ctx.cart.map(i => `${i.productName} (${i.size})`).join(', ');
+                    const order = await order_service_1.OrderService.createOrder({
+                        customerName: customerName,
+                        customerPhone: customerPhone,
+                        address: address,
+                        productCode: combinedProductCode,
+                        productName: combinedProductName,
+                        size: ctx.cart.map(i => i.size).join(','),
+                        quantity: totalQuantity,
+                        senderId: senderId
+                    });
+                    db_1.db.prepare(`
+            UPDATE orders 
+            SET unit_price = ?, shipping_fee = ?, discount = ?, total_price = ?
+            WHERE order_id = ?
+          `).run(subtotal / Math.max(1, totalQuantity), shippingFee, discount, totalPrice, order.orderId);
+                    for (const item of ctx.cart) {
+                        await stock_service_1.StockService.deductStock(item.productCode, item.quantity);
+                    }
+                    const cartSummaryText = ctx.cart.map(i => `• ${i.productName} (${i.size}) - ${i.quantity} adet x ${i.unitPrice} TL`).join('\n');
+                    ctx.cart = [];
+                    return JSON.stringify({
+                        success: true,
+                        orderCreated: true,
+                        orderId: order.orderId,
+                        appliedLoyaltyReward,
+                        earnedNewLoyaltyReward,
+                        subtotal,
+                        shippingFee,
+                        discount,
+                        totalPrice,
+                        priceDetails: `Sipariş Özeti:\n${cartSummaryText}\n\nAra Toplam: ${subtotal.toFixed(2)} TL\nKargo: ${shippingFee === 0 ? 'ÜCRETSİZ' : shippingFee.toFixed(2) + ' TL'}\nİndirim: ${discount > 0 ? '-' + discount.toFixed(2) + ' TL' : '0 TL'}\nNET ÖDENECEK TOPLAM: ${totalPrice.toFixed(2)} TL`,
+                        loyaltyNotice: earnedNewLoyaltyReward
+                            ? `🎉 TEBRİKLER! ${loyaltyThreshold} TL ve üzeri sipariş verdiğiniz için Instagram hesabınıza (ID: ${senderId}) tanımlı BIR DAHA Kİ SİPARİŞİNİZDE GEÇERLİ %20 VIP İNDİRİM HAKKI KAZANDINIZ!`
+                            : ''
+                    });
+                }
+                catch (e) {
+                    return JSON.stringify({ error: e.message });
+                }
+            }
+        });
+        // MESAJ Tool
+        const mesajTool = new tools_1.DynamicTool({
+            name: 'MESAJ',
+            description: 'İşletme sahibine Telegram üzerinden HTML bildirim yollar.',
+            func: async (input) => {
+                try {
+                    let data = typeof input === 'object' ? input : JSON.parse(input);
                     await telegram_service_1.TelegramService.notifyOrder({
                         customerName: data.customerName || ctx.customerName || 'Müşteri',
                         customerPhone: data.customerPhone || ctx.customerPhone || '',
@@ -218,35 +368,14 @@ Yalnızca aşağıdaki JSON yapısını döndür (bilinmeyen alanlar için null 
                 }
             }
         });
-        return { stokTool, kayitTool, mesajTool, guncelleTool };
+        return { stokTool, sepeteEkleTool, sepetGoruntuleTool, kayitTool, mesajTool, guncelleTool };
     }
-    /**
-     * n8n 'BİLGİLENDİRME' Sub-Agent Tool
-     */
     static createBilgilendirmeSubAgent(model, mesajTool) {
         return new tools_1.DynamicTool({
             name: 'BILGILENDIRME',
-            description: 'sipariş verildiğinde sipariş bilgilerini ve sipariş numarasını bu ajana gönder',
+            description: 'Sipariş tamamlandığında işletme sahibine bilgilendirme mesajı atar.',
             func: async (input) => {
-                const systemPrompt = new messages_1.SystemMessage(`
-<görev>
-Sen işletme sahibini Telegram üzerinden yeni siparişler hakkında bilgilendiren asistansın. Sipariş tamamlandığında SADECE BİR KERE mesaj gönderirsin.
-</görev>
-
-<mesaj_şablonu>
-MESAJ aracıyla işletme sahibine şu HTML formatında bilgi ilet:
-
-🛍️ <b>YENİ SİPARİŞ BİLDİRİMİ</b>
-- <b>İSİM SOYİSİM:</b> {İsim Soyisim}
-- <b>ÜRÜN KODU:</b> {Ürün Kodu}
-- <b>BEDEN:</b> {Beden}
-- <b>ADRES:</b> {Adres}
-- <b>TELEFON:</b> {Telefon Numarası}
-- <b>SİPARİŞ NUMARASI:</b> <code>{Siparişte Oluşturulan Sipariş Numarası}</code>
-
-ONAYLAMAK İÇİN SİPARİŞ NUMARASI İLE ONAY YADA RED YAZINIZ.
-</mesaj_şablonu>
-`);
+                const systemPrompt = new messages_1.SystemMessage(`İşletme sahibini Telegram üzerinden bilgilendir.`);
                 const boundModel = model.bindTools([mesajTool]);
                 const messages = [systemPrompt, new messages_1.HumanMessage(input)];
                 const response = await boundModel.invoke(messages);
@@ -259,26 +388,19 @@ ONAYLAMAK İÇİN SİPARİŞ NUMARASI İLE ONAY YADA RED YAZINIZ.
             }
         });
     }
-    /**
-     * n8n 'SİPARİS' Sub-Agent Tool
-     */
-    static createSiparisSubAgent(model, stokTool, kayitTool, bilgilendirmeAgentTool) {
+    static createSiparisSubAgent(model, stokTool, sepeteEkleTool, sepetGoruntuleTool, kayitTool, bilgilendirmeAgentTool) {
         return new tools_1.DynamicTool({
             name: 'SIPARIS',
-            description: 'ANA AJANDAN ALINAN OUTPUTU DİREKT BURAYA VER',
+            description: 'Stok sorgulama, sepete ekleme ve toplu sipariş kaydı işlemlerini yürütür.',
             func: async (input) => {
                 const systemPrompt = new messages_1.SystemMessage(`
 <görev>
-Sen stok sorgulaması yapmak ve sipariş tamamlandığında müşteri bilgilerini kaydetmekle görevli ajansın.
+Stok sorgulama, sepete ekleme ve sipariş kayıt ajansın.
+1. Müşteri ürün beğenip sepete eklemek istediğinde SEPETE_EKLE aracını çağır.
+2. Müşteri "isteklerim bu kadar", "siparişi tamamla", "hepsini alayım" dediğinde KAYIT aracını çağır.
 </görev>
-
-<yönergeler>
-1. **Stok Sorgulama (STOK):** Müşterinin istediği Ürün Kodu veya İsim ile STOK aracından stok kontrolü yap.
-2. **Kayıt (KAYIT):** Sipariş bilgileri (İsim, Soyisim, Ürün Kodu, Beden, Adres, Telefon, Adet) eksiksiz alındığında KAYIT aracını çağırarak siparişi tabloya ekle.
-3. **Bilgilendirme (BİLGİLENDİRME):** Sipariş kaydı oluştuktan sonra BİLGİLENDİRME aracını çalıştırarak işletme sahibine sipariş detaylarını ilet.
-</yönergeler>
 `);
-                const boundModel = model.bindTools([stokTool, kayitTool, bilgilendirmeAgentTool]);
+                const boundModel = model.bindTools([stokTool, sepeteEkleTool, sepetGoruntuleTool, kayitTool, bilgilendirmeAgentTool]);
                 let messages = [systemPrompt, new messages_1.HumanMessage(input)];
                 let response = await boundModel.invoke(messages);
                 messages.push(response);
@@ -289,6 +411,10 @@ Sen stok sorgulaması yapmak ve sipariş tamamlandığında müşteri bilgilerin
                         let toolRes = "";
                         if (tc.name === 'STOK')
                             toolRes = await stokTool.invoke(JSON.stringify(tc.args));
+                        else if (tc.name === 'SEPETE_EKLE')
+                            toolRes = await sepeteEkleTool.invoke(JSON.stringify(tc.args));
+                        else if (tc.name === 'SEPET_GORUNTULE')
+                            toolRes = await sepetGoruntuleTool.invoke(JSON.stringify(tc.args));
                         else if (tc.name === 'KAYIT')
                             toolRes = await kayitTool.invoke(JSON.stringify(tc.args));
                         else if (tc.name === 'BILGILENDIRME')
@@ -302,15 +428,12 @@ Sen stok sorgulaması yapmak ve sipariş tamamlandığında müşteri bilgilerin
             }
         });
     }
-    /**
-     * n8n 'STOK MAN' Sub-Agent Tool
-     */
     static createStokManSubAgent(model, guncelleTool) {
         return new tools_1.DynamicTool({
             name: 'STOK_MAN',
-            description: 'sipariş onaylanırsa buraya sipariş detaylarını gönder',
+            description: 'Sipariş onaylandığında stok düşer.',
             func: async (input) => {
-                const systemPrompt = new messages_1.SystemMessage(`Sen bir stok güncelleme Ajanısın.`);
+                const systemPrompt = new messages_1.SystemMessage(`Stok güncelleme Ajanı.`);
                 const boundModel = model.bindTools([guncelleTool]);
                 const response = await boundModel.invoke([systemPrompt, new messages_1.HumanMessage(input)]);
                 if (response.tool_calls && response.tool_calls.length > 0) {
@@ -322,9 +445,6 @@ Sen stok sorgulaması yapmak ve sipariş tamamlandığında müşteri bilgilerin
             }
         });
     }
-    /**
-     * n8n Root 'ANA' Agent İşleyicisi
-     */
     static async processMessage(senderId, userMessage) {
         const apiKey = this.getApiKey();
         if (!apiKey || apiKey === 'DUMMY_KEY') {
@@ -346,40 +466,94 @@ Sen stok sorgulaması yapmak ve sipariş tamamlandığında müşteri bilgilerin
             }
         };
         try {
-            // Yapay Zeka Destekli Akıllı Veri Ayıklama Motorunu Çalıştır (F.R.I.D.A.Y. AI Extractor)
             await this.extractSessionDataWithAI(senderId, userMessage, apiKey);
             const ctx = this.getSessionContext(senderId);
+            // Veritabanından Aktif ve Süresi Dolmamış Kampanyaları Çek
+            const activeCampaigns = db_1.db.prepare(`
+        SELECT title, description, code, start_date, end_date 
+        FROM campaigns 
+        WHERE active = 1 AND (end_date IS NULL OR end_date = '' OR end_date >= DATE('now'))
+      `).all();
+            const shippingSetting = db_1.db.prepare("SELECT value FROM settings WHERE key = 'shipping_fee'").get();
+            const thresholdSetting = db_1.db.prepare("SELECT value FROM settings WHERE key = 'free_shipping_threshold'").get();
+            const loyaltyThresholdSetting = db_1.db.prepare("SELECT value FROM settings WHERE key = 'loyalty_threshold'").get();
+            const userReward = db_1.db.prepare("SELECT * FROM user_rewards WHERE sender_id = ? AND is_used = 0 ORDER BY id DESC LIMIT 1").get(senderId);
+            const shippingFee = shippingSetting?.value || '49';
+            const freeThreshold = thresholdSetting?.value || '1500';
+            const loyaltyThreshold = loyaltyThresholdSetting?.value || '2000';
+            let rewardText = "";
+            if (userReward) {
+                rewardText = `🎁 **MÜŞTERİNİN İNSTAGRAM HESABINA TANIMLI ÖZEL ÖDÜL:** Müşterinin Instagram hesabına tanımlı %${userReward.discount_percent} VIP İNDİRİM HAKKI vardır! Bu siparişinde müşteri özel %${userReward.discount_percent} VIP indirimi kazanır. Müşteriye bu harika haberi ver!`;
+            }
+            else {
+                rewardText = `💡 **GELECEK SİPARİŞ İNDİRİM HAKKI KAZANMA:** Müşterinin bu siparişi ${loyaltyThreshold} TL ve üzeri olursa, bir sonraki siparişinde geçerli %20 VIP İNDİRİM HAKKI kazanacaktır!`;
+            }
+            const campaignsText = activeCampaigns.length > 0
+                ? activeCampaigns.map(c => `- ${c.title}: ${c.description} (Kod: ${c.code || 'Yok'})`).join('\n')
+                : 'Şu an aktif genel kampanya bulunmamaktadır.';
+            const cartText = ctx.cart.length > 0
+                ? ctx.cart.map(i => `• ${i.productName} (${i.size}) x${i.quantity} - ${i.unitPrice * i.quantity} TL`).join('\n')
+                : 'Sepetiniz şu an boş.';
             const model = new openai_1.ChatOpenAI({
                 openAIApiKey: apiKey,
                 modelName: env_1.env.openaiModel || 'gpt-4o',
                 temperature: 0.2
             });
-            // Alt Ajan ve Araç Ağacını Kur
-            const { stokTool, kayitTool, mesajTool, guncelleTool } = this.createLeafTools(senderId);
+            const { stokTool, sepeteEkleTool, sepetGoruntuleTool, kayitTool, mesajTool, guncelleTool } = this.createLeafTools(senderId);
             const bilgilendirmeAgentTool = this.createBilgilendirmeSubAgent(model, mesajTool);
-            const siparisAgentTool = this.createSiparisSubAgent(model, stokTool, kayitTool, bilgilendirmeAgentTool);
+            const siparisAgentTool = this.createSiparisSubAgent(model, stokTool, sepeteEkleTool, sepetGoruntuleTool, kayitTool, bilgilendirmeAgentTool);
             const stokManAgentTool = this.createStokManSubAgent(model, guncelleTool);
             const rootTools = [siparisAgentTool, stokManAgentTool];
             const boundRootModel = model.bindTools(rootTools);
             const systemPrompt = new messages_1.SystemMessage(`
 <görev>
-Sen BARON'S SILLAGE 7/24 Mağaza Müşteri Danışmanısın. Tıpkı gerçek bir insan satış temsilcisi gibi sıcak, son derece nazik ve doğal bir iletişim kurarsın.
+Sen BARON'S SILLAGE 7/24 Mağaza Müşteri Danışmanısın (F.R.I.D.A.Y.). Müşterilerin ürün sorularını yanıtlar, ürünleri SEPETE EKLER ve müşteri "isteklerim bu kadar / siparişi tamamla" dediğinde TOPLU SİPARİŞİ oluşturursun.
 </görev>
 
-<üslup_ve_doğallık_kuralları>
-1. ROBOTİK KALIPLARI KESİNLİKLE KULLANMA: Her mesajın sonuna "Başka bir konuda yardımcı olabilir miyim?" veya "Başka bir isteğiniz var mı?" gibi yapay robotik cümleler KESİNLİKLE KOYMA.
-2. İNSAN GİBİ KONUŞ: Gerçek bir butik mağaza danışmanı gibi akıcı konuş. (Örn: "KGMLW modelimiz stokta mevcuttur! Siparişinizi oluşturmamı ister misiniz?")
-</üslup_ve_doğallık_kuralları>
+<KATI_GÜVENLİK_VE_SEPET_KURALLARI>
+1. 🛒 **SEPET SİSTEMİ (ÇOKLU ÜRÜN DESTEĞİ):**
+   - Müşteri bir ürün seçtiğinde ("bunu sepetime ekle", "KGMLW M beden 1 adet ekle", "başka ürüne de bakacağım") SEPETE_EKLE aracını çağır ve ürünü sepete ekle.
+   - Müşteri "isteklerim bu kadar", "siparişi tamamla", "hepsini alayım", "bu kadar" dediğinde veya tek seferde tüm bilgileri verdiyse KAYIT aracını çağırarak toplu siparişi veritabanına kaydet.
+   - Müşterinin Mevcut Sepet Durumu:
+${cartText}
 
-<akış_ve_kurallar>
-1. **İlk Temas:** İlk mesajda müşteriyi sıcak ve nazikçe karşıla.
-2. **Kısa Kod ve Beden Akışı:**
-   - Müşteri ürün ismi veya kısa kod verdiyse (Örn: KGMLW), ÖNCE hangi bedeni (S, M, L, XL veya 40, 41) istediğini sor.
-   - Beden bilgisi alındıktan sonra kısa kod ile bedeni birleştirip (Örn: KGMLW-M) SIPARIS aracını çalıştır.
-3. **HAFIZA VE VERİ KORUMA KURALI:**
-   - Önceki mesajlarda konuşulan ÜRÜN KODUNU (Örn: ${ctx.productCode || 'KGMLW'}) ve BEDENİ (Örn: ${ctx.size || 'M'}) asla unutma. SIPARIS veya KAYIT araçlarını çağırırken bu ürün kodunu ve müşterinin telefonunu eksiksiz aktar.
-4. **Sipariş Kaydı:** Müşteri bilgileri tam alındığında SIPARIS aracını çağırarak sipariş kaydını oluştur ve teşekkür et.
-</akış_ve_kurallar>
+2. 🎁 **INSTAGRAM ID'YE ÖZEL VİP İNDİRİM HAKKI SİSTEMİ:**
+${rewardText}
+
+3. 🔒 **STOK SORGULAMA KURALI (BEDEN VE ADET ZORUNLUDUR):**
+   - Müşteri HANGİ BEDEN (S, M, L, XL, 41 vb.) ve KAÇ ADET ilgilendiğini söylemeden STOK SORGULAMASI YAPMA!
+   - Eğer müşteri sadece "Gömlek var mı?" veya "KGMLW var mı?" dediyse, nazikçe şöyle sor: "Hangi beden (S, M, L, XL vb.) ve kaç adet düşünüyorsunuz?"
+
+4. 🔒 **TOPLU SİPARİŞ VE BİLGİ İSTEME KURALI (SEPET TOPLAMI MUTLAKA BELİRTİLECEK!):**
+   Müşteriden teslimat bilgilerini (Ad Soyad, Telefon, Adres) isterken VEYA siparişi tamamlamadan önce:
+   👉 **SEPETTEKİ ÜRÜNLERİ, KARGO DURUMUNU VE TOPLAM SİPARİŞ TUTARINI (TL) MUTLAKA AÇIKÇA BELİRT!**
+   
+   Örnek Yanıt Formatı:
+   "🛒 **Sepet Özeti:**
+   {Ürün Kodları ve Adetleri}
+   💰 **Toplam Sipariş Tutarınız:** {Net Toplam Ödenecek Tutar} TL ({Kargo Durumu})
+
+   Siparişinizi tamamlamadan önce, lütfen aşağıdaki bilgileri paylaşın:
+   1. Adınız ve Soyadınız
+   2. Telefon Numaranız
+   3. Teslimat Adresiniz
+
+   Bu bilgileri aldıktan sonra siparişinizi oluşturabilirim."
+
+   Şu 3 bilgi EKSİKSİZ alınmadan KAYIT/SIPARIS aracını tetikleme:
+   ① Müşteri Adı ve Soyadı (${ctx.customerName || '❌ Eksik'})
+   ② Telefon Numarası (${ctx.customerPhone || '❌ Eksik'})
+   ③ Teslimat Adresi (${ctx.address || '❌ Eksik'})
+
+5. 🎉 **KAMPANYALAR VE DÜKKAN İNDİRİMLERİ:**
+   Mağazamızın Aktif Kampanyaları:
+${campaignsText}
+
+6. 🚚 **KARGO ÜCRETİ VE FİYATLANDIRMA:**
+   - Standart Kargo Ücreti: ${shippingFee} TL.
+   - ${freeThreshold} TL ve üzeri siparişlerde KARGO ÜCRETSİZDİR!
+   - Sepet siparişi sorulduğunda veya teslimat bilgileri istenirken sepet ara toplamını, kargo ücretini ve varsa kampanya/VIP indirimini hesaplayarak NET TOPLAM TUTARI açıkça söyle.
+</KATI_GÜVENLİK_VE_SEPET_KURALLARI>
 `);
             ctx.history.push(new messages_1.HumanMessage(userMessage));
             if (ctx.history.length > 16) {
@@ -389,7 +563,6 @@ Sen BARON'S SILLAGE 7/24 Mağaza Müşteri Danışmanısın. Tıpkı gerçek bir
             let response = await boundRootModel.invoke(messages);
             trackUsage(response, messages.length);
             messages.push(response);
-            // Root Agent Tool Execution Loop
             let count = 0;
             while (response.tool_calls && response.tool_calls.length > 0 && count < 4) {
                 count++;
@@ -413,18 +586,13 @@ Sen BARON'S SILLAGE 7/24 Mağaza Müşteri Danışmanısın. Tıpkı gerçek bir
             const costUsd = (promptTokens * 0.0000025) + (completionTokens * 0.00001);
             return {
                 reply: finalOutput,
-                tokens: {
-                    promptTokens,
-                    completionTokens,
-                    totalTokens,
-                    costUsd: Number(costUsd.toFixed(6))
-                }
+                tokens: { promptTokens, completionTokens, totalTokens, costUsd }
             };
         }
         catch (error) {
-            console.error('[AIService Hiyerarşik Ajan] ❌ Hata:', error);
+            console.error('[AIService] ❌ İşlem Hatası:', error);
             return {
-                reply: "Anlayışınız için teşekkür ederiz, talebinizi işleme alıyoruz.",
+                reply: "Üzgünüm, şu an bağlantıda geçici bir yoğunluk var. Lütfen biraz sonra tekrar deneyiniz.",
                 tokens: { promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0 }
             };
         }

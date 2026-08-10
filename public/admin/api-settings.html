@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BARON'S SILLAGE — API & Yapay Zeka Kişiselleştirme Ayarları</title>
+
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="layout">
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+    <a href="index.html" class="logo">
+        <div class="logo-mark">
+            <i data-lucide="crown" size="20"></i>
+        </div>
+        BARON'S<span> SILLAGE</span>
+    </a>
+
+    <div class="section-title">ANA MENÜ</div>
+
+    <a href="index.html" class="nav-item">
+        <i data-lucide="layout-dashboard"></i>
+        Dashboard & Stok
+    </a>
+
+    <a href="orders.html" class="nav-item">
+        <i data-lucide="shopping-cart"></i>
+        Siparişler
+        <span class="nav-badge" id="ordersBadgeCount">0</span>
+    </a>
+
+    <a href="new-product.html" class="nav-item">
+        <i data-lucide="package-plus"></i>
+        Yeni Ürün Girişi
+    </a>
+
+    <a href="campaigns.html" class="nav-item">
+        <i data-lucide="badge-percent"></i>
+        Kampanyalar
+    </a>
+
+    <a href="rewards.html" class="nav-item">
+        <i data-lucide="gift"></i>
+        VIP Ödüller
+    </a>
+
+    <div class="section-title">SaaS MAĞAZA YÖNETİMİ</div>
+
+    <a href="stores.html" class="nav-item">
+        <i data-lucide="store"></i>
+        🏢 Mağazalar & Müşteriler
+    </a>
+
+    <div class="section-title">AI & MAĞAZA YÖNETİMİ</div>
+
+    <a href="ai-product.html" class="nav-item">
+        <i data-lucide="sparkles"></i>
+        F.R.I.D.A.Y. AI Copilot
+    </a>
+
+    <a href="settings.html" class="nav-item">
+        <i data-lucide="settings"></i>
+        Fiyat & Kargo Ayarları
+    </a>
+
+    <div class="section-title">SİSTEM & ALTYAPI</div>
+
+    <a href="api-settings.html" class="nav-item active">
+        <i data-lucide="sliders"></i>
+        API & AI Kişiselleştirme
+    </a>
+
+    <div class="sidebar-bottom">
+        <div class="store-card">
+            <div class="store-avatar">B</div>
+            <div class="store-info">
+                <strong>BARON'S SILLAGE</strong>
+                <small>Enterprise Admin Console</small>
+            </div>
+            <i data-lucide="chevron-down" size="15" style="margin-left:auto;color:#9ca3af"></i>
+        </div>
+    </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+
+    <!-- TOPBAR -->
+    <header class="topbar">
+        <div style="display:flex;align-items:center;gap:10px">
+            <button class="icon-button mobile-menu" onclick="toggleSidebar()">
+                <i data-lucide="menu"></i>
+            </button>
+
+            <div class="search">
+                <i data-lucide="search" size="15"></i>
+                <input type="text" placeholder="API veya AI ayarı ara...">
+                <span style="font-size:9px;color:#9ca3af">⌘ K</span>
+            </div>
+        </div>
+
+        <div class="top-actions">
+            <div class="sync-badge" id="syncStatusBadge" style="margin-right:8px;">
+                <span class="pulse-dot"></span>
+                <span>Live SQLite & Sheet Sync</span>
+            </div>
+
+            <button class="icon-button" id="btnToggleSound" title="Bildirim Sesleri">
+                <i data-lucide="bell" size="17"></i>
+                <span class="notification-dot"></span>
+            </button>
+
+            <button class="icon-button" id="btnRefreshData" title="Verileri Yenile">
+                <i data-lucide="refresh-cw" size="17"></i>
+            </button>
+
+            <div class="user">
+                <div class="avatar">TS</div>
+                <div class="user-text">
+                    <strong>Tony Stark</strong>
+                    <span>Mağaza Sahibi (Patron)</span>
+                </div>
+                <i data-lucide="chevron-down" size="13"></i>
+            </div>
+        </div>
+    </header>
+
+    <!-- CONTENT -->
+    <section class="content">
+
+        <div class="page-header">
+            <div class="page-title">
+                <h1>API Ayarları & Yapay Zeka Kişiselleştirme</h1>
+                <p>Gemini AI asistanınızın üslubunu, bot adını, sistem talimatlarını ve API anahtarlarını yönetin.</p>
+            </div>
+
+            <div class="header-actions">
+                <button class="btn btn-primary" onclick="saveSystemSettingsPage()">
+                    <i data-lucide="save" size="14"></i>
+                    Değişiklikleri Kaydet
+                </button>
+            </div>
+        </div>
+
+        <!-- AI PERSONALIZATION CARD -->
+        <div class="card table-card">
+            <div class="table-header">
+                <div class="table-title">🤖 Yapay Zeka Asistan Kişiselleştirme & Persona Ayarları</div>
+            </div>
+
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Yapay Zeka Asistan Adı</label>
+                    <input type="text" id="sysBotName" placeholder="Örn: F.R.I.D.A.Y." value="F.R.I.D.A.Y.">
+                </div>
+
+                <div class="form-group">
+                    <label>Yapay Zeka Ses Tonu & Kişilik Üslubu</label>
+                    <select id="sysBotTone" class="select" style="width:100%; height:40px; font-size:12px;">
+                        <option value="luxury">Lüks Parfüm Danışmanı & Saygılı (Önerilen)</option>
+                        <option value="friendly">Samimi, Sıcak & Yardımsever</option>
+                        <option value="formal">Kurumsal, Kısa & Profesyonel</option>
+                        <option value="patron">Patron Asistanı (Tony Stark Özel)</option>
+                    </select>
+                </div>
+
+                <div class="form-group full-width">
+                    <label>Özel Sistem Talimatı / Persona Promptu (Müşteri Konuşma Kuralları)</label>
+                    <textarea id="sysBotSystemPrompt" rows="4" style="width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; font-size:12px; outline:none; resize:vertical;" placeholder="Müşterilere verilecek selamlar, öneri stili ve mağaza kuralları..."></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- API KEYS CARD -->
+        <div class="card table-card">
+            <div class="table-header">
+                <div class="table-title">🔑 API & Webhook Entegrasyon Anahtarları</div>
+            </div>
+
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Gemini AI API Key</label>
+                    <input type="password" id="sysGeminiApiKey" placeholder="AIzaSy...">
+                </div>
+
+                <div class="form-group">
+                    <label>Instagram / Facebook Page Access Token</label>
+                    <input type="password" id="sysFbAccessToken" placeholder="EAA...">
+                </div>
+
+                <div class="form-group">
+                    <label>Google Sheet Spreadsheet ID</label>
+                    <input type="text" id="sysGoogleSheetId" placeholder="1BxiMVs0XRra5nFMdAcB...">
+                </div>
+
+                <div class="form-group">
+                    <label>Telegram Bildirim Bot Token & Chat ID</label>
+                    <input type="text" id="sysTelegramToken" placeholder="bot_token:chat_id">
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-primary" onclick="saveSystemSettingsPage()">
+                    <i data-lucide="save" size="14"></i>
+                    Tüm Ayarları Kaydet
+                </button>
+            </div>
+        </div>
+
+        <!-- DEDICATED STORE WEBHOOK ENDPOINT CARD -->
+        <div class="card table-card" style="margin-top:20px;">
+            <div class="table-header">
+                <div class="table-title">📡 Mağazanıza Özel Webhook URL (Meta & Instagram Entegrasyonu)</div>
+            </div>
+            
+            <div style="padding:15px; font-size:12px; color:#94a3b8; line-height:1.6;">
+                <p style="margin-bottom:12px; color:#e2e8f0;">
+                    Instagram veya Meta Developer Portal'da webhook tanımlarken aşağıdaki mağazanıza özel bağımsız URL'yi kullanın. 
+                    Bu adrese gelen tüm DM mesajları <strong>yalnızca sizin mağaza veritabanınızda</strong> işlenir.
+                </p>
+                <div class="form-grid">
+                    <div class="form-group full-width">
+                        <label>Mağazanıza Özel Bağımsız Webhook URL</label>
+                        <div style="display:flex; gap:8px;">
+                            <input type="text" id="storeWebhookUrl" readonly style="background:#0f172a; color:#38bdf8; font-family:monospace; font-weight:700; width:100%;" value="http://34.179.173.204/api/webhook/magaza">
+                            <button type="button" class="btn btn-secondary" onclick="copyStoreWebhookUrl()" style="white-space:nowrap;">
+                                <i class="fa-solid fa-copy"></i> Kopyala
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Webhook Verify Token</label>
+                        <input type="text" id="storeVerifyToken" readonly style="background:#0f172a; color:#a78bfa; font-family:monospace; font-weight:700;" value="barons_secret_verify_token_2026">
+                    </div>
+                </div>
+            </div>
+        <!-- DEDICATED GOOGLE SHEETS & DATABASE IMPORT CARD -->
+        <div class="card table-card" style="margin-top:20px;">
+            <div class="table-header">
+                <div class="table-title">📊 Google Sheet İle Stok & Ürün İçe Aktarma (Mağaza Özel)</div>
+            </div>
+            
+            <div style="padding:15px; font-size:12px; color:#94a3b8; line-height:1.6;">
+                <p style="margin-bottom:12px; color:#e2e8f0;">
+                    Kendi Google Sheet tablonuzdan stok ürünlerini otonom çekerek mağaza veritabanınıza aktarabilirsiniz. 
+                    Tablonuzun sütun sırası: <span style="color:#a78bfa; font-weight:700;">KODU, İSMİ, RENK, BEDEN, STOK, FİYAT, KATEGORİ</span> şeklinde olmalıdır.
+                </p>
+                <div class="form-grid">
+                    <div class="form-group full-width">
+                        <label>Google Sheet Paylaşım Bağlantısı veya Spreadsheet ID</label>
+                        <input type="text" id="customSheetImportUrl" placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRra5nFMdAcB.../edit veya ID">
+                    </div>
+                </div>
+                <div style="margin-top:15px; display:flex; gap:10px; flex-wrap:wrap;">
+                    <button type="button" class="btn btn-primary" onclick="importFromCustomGoogleSheet()" id="btnImportSheet" style="background:#7c3aed; border-color:#7c3aed;">
+                        <i class="fa-solid fa-file-import"></i> Google Sheet'ten Stok İçe Aktar (Import Products)
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="exportStoreDataToCSV()">
+                        <i class="fa-solid fa-file-csv"></i> Mağaza Verilerini CSV Olarak İndir (Export)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </section>
+</main>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="app.js"></script>
+<script>
+  function toggleSidebar(){
+    document.getElementById("sidebar").classList.toggle("open");
+  }
+  lucide.createIcons();
+  document.addEventListener("DOMContentLoaded", () => {
+    if (typeof loadSystemSettingsIntoModal === "function") {
+      loadSystemSettingsIntoModal();
+    }
+  });
+</script>
+</body>
+</html>

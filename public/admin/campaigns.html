@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CommerceOS — Kampanya Yönetimi</title>
+
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="layout">
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+    <a href="index.html" class="logo">
+        <div class="logo-mark">
+            <i data-lucide="shopping-bag" size="18"></i>
+        </div>
+        Commerce<span>OS</span>
+    </a>
+
+    <div class="section-title">ANA MENÜ</div>
+
+    <a href="index.html" class="nav-item">
+        <i data-lucide="layout-dashboard"></i>
+        Dashboard & Stok
+    </a>
+
+    <a href="orders.html" class="nav-item">
+        <i data-lucide="shopping-cart"></i>
+        Siparişler
+        <span class="nav-badge" id="ordersBadgeCount">0</span>
+    </a>
+
+    <a href="new-product.html" class="nav-item">
+        <i data-lucide="package"></i>
+        Yeni Ürün Ekle
+    </a>
+
+    <a href="campaigns.html" class="nav-item active">
+        <i data-lucide="badge-percent"></i>
+        Kampanyalar
+    </a>
+
+    <a href="rewards.html" class="nav-item">
+        <i data-lucide="gift"></i>
+        VIP Ödüller
+    </a>
+
+    <div class="section-title">SaaS MAĞAZA YÖNETİMİ</div>
+
+    <a href="stores.html" class="nav-item">
+        <i data-lucide="store"></i>
+        🏢 Mağazalar & Müşteriler
+    </a>
+
+    <div class="section-title">AI & MAĞAZA YÖNETİMİ</div>
+
+    <a href="ai-product.html" class="nav-item">
+        <i data-lucide="sparkles"></i>
+        F.R.I.D.A.Y. AI Copilot
+    </a>
+
+    <a href="settings.html" class="nav-item">
+        <i data-lucide="settings"></i>
+        Fiyat & Kargo Ayarları
+    </a>
+
+    <div class="section-title">SİSTEM & ALTYAPI</div>
+
+    <a href="api-settings.html" class="nav-item">
+        <i data-lucide="sliders"></i>
+        API & AI Kişiselleştirme
+    </a>
+
+    <div class="sidebar-bottom">
+        <div class="store-card">
+            <div class="store-avatar">N</div>
+            <div class="store-info">
+                <strong>Nova Store</strong>
+                <small>BARON'S SILLAGE</small>
+            </div>
+            <i data-lucide="chevron-down" size="15" style="margin-left:auto;color:#9ca3af"></i>
+        </div>
+    </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+
+    <!-- TOPBAR -->
+    <header class="topbar">
+        <div style="display:flex;align-items:center;gap:10px">
+            <button class="icon-button mobile-menu" onclick="toggleSidebar()">
+                <i data-lucide="menu"></i>
+            </button>
+
+            <div class="search">
+                <i data-lucide="search" size="15"></i>
+                <input type="text" placeholder="Kampanya ara...">
+                <span style="font-size:9px;color:#9ca3af">⌘ K</span>
+            </div>
+        </div>
+
+        <div class="top-actions">
+            <div class="sync-badge" id="syncStatusBadge" style="margin-right:10px;">
+                <span class="pulse-dot"></span>
+                <span>Live SQLite & Sheet Sync</span>
+            </div>
+
+            <button class="icon-button" id="btnToggleSound" title="Bildirim Sesleri">
+                <i data-lucide="bell" size="17"></i>
+                <span class="notification-dot"></span>
+            </button>
+
+            <button class="icon-button" id="btnRefreshData" title="Verileri Yenile">
+                <i data-lucide="refresh-cw" size="17"></i>
+            </button>
+
+            <button class="icon-button" id="btnOpenSystemSettings" title="API & AI Kişiselleştirme Ayarları" onclick="openSystemSettingsModal()">
+                <i data-lucide="sliders" size="17"></i>
+            </button>
+
+            <div class="user">
+                <div class="avatar">EM</div>
+                <div class="user-text">
+                    <strong>Emre İşcenkal</strong>
+                    <span>Administrator</span>
+                </div>
+                <i data-lucide="chevron-down" size="13"></i>
+            </div>
+        </div>
+    </header>
+
+    <!-- CONTENT -->
+    <section class="content">
+
+        <div class="page-header">
+            <div class="page-title">
+                <h1>Kampanya Yönetimi</h1>
+                <p>Mağazanızda geçerli indirim kuponları ve otomatik kampanya kurguları.</p>
+            </div>
+        </div>
+
+        <!-- FORM CARD -->
+        <div class="card table-card">
+            <div class="table-header">
+                <div class="table-title">🎉 Yeni Kampanya Başlat</div>
+            </div>
+
+            <form id="campaignForm">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Kampanya Başlığı</label>
+                        <input type="text" id="campTitle" placeholder="Örn: %10 Hoş Geldin İndirimi" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Kampanya Kodu (İsteğe Bağlı)</label>
+                        <input type="text" id="campCode" placeholder="Örn: BARONS10" style="text-transform:uppercase;">
+                    </div>
+
+                    <div class="form-group">
+                        <label>İndirim Yüzdesi (%)</label>
+                        <input type="number" id="campPercent" placeholder="10" min="0" max="100">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Açıklama / Bot Notu</label>
+                        <input type="text" id="campDesc" placeholder="Müşteriye uygulanacak indirim açıklaması" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Başlangıç Tarihi</label>
+                        <input type="date" id="campStartDate">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Bitiş / Son Kullanma Tarihi</label>
+                        <input type="date" id="campEndDate">
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">
+                        <i data-lucide="plus" size="14"></i>
+                        Kampanyayı Başlat
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- CAMPAIGNS TABLE -->
+        <div class="card table-card">
+            <div class="table-header">
+                <div class="table-title">Aktif Kampanyalar</div>
+            </div>
+
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>BAŞLIK</th>
+                            <th>AÇIKLAMA</th>
+                            <th>KOD</th>
+                            <th>İNDİRİM</th>
+                            <th>BİTİŞ TARİHİ</th>
+                            <th>İŞLEM</th>
+                        </tr>
+                    </thead>
+                    <tbody id="campaignsTableBody">
+                        <tr>
+                            <td colspan="7" style="text-align:center;padding:40px;color:#6b7280;">
+                                Kampanyalar yükleniyor...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </section>
+</main>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="app.js"></script>
+<script>
+  function toggleSidebar(){
+    document.getElementById("sidebar").classList.toggle("open");
+  }
+  lucide.createIcons();
+</script>
+</body>
+</html>

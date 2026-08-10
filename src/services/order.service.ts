@@ -4,6 +4,7 @@ import { db } from '../database/db';
 import { StockService } from './stock.service';
 import { GoogleSheetsService } from './google-sheets.service';
 import { TelegramService } from './telegram.service';
+import { FacebookService } from './facebook.service';
 
 export interface OrderData {
   customerName: string;
@@ -13,6 +14,10 @@ export interface OrderData {
   productName: string;
   size: string;
   quantity: number;
+  unitPrice?: number;
+  shippingFee?: number;
+  discount?: number;
+  totalPrice?: number;
   senderId?: string;
 }
 
@@ -21,6 +26,10 @@ export interface SavedOrder extends OrderData {
   createdAt: string;
   status?: string; // 'BEKLEMEDE' | 'OK' | 'DEC'
   senderId?: string;
+  unitPrice?: number;
+  shippingFee?: number;
+  discount?: number;
+  totalPrice?: number;
 }
 
 /**
@@ -28,28 +37,28 @@ export interface SavedOrder extends OrderData {
  */
 export class OrderService {
   /**
-   * Deterministik Sipariş Numarası Üreticisi (Dakika + Saniye)
-   * Format: ÜRÜN_KODU - BEDEN - TELEFON_SON_3 - DAKİKA_SANİYE
-   * Örn: KGMLW-M-589-4902
+   * Deterministik Temiz Sipariş Numarası Üreticisi
+   * Tekli Ürün Örn: BRN-KGMLW-712-4902
+   * Çoklu/Toplu Sipariş Örn: BRN-ORD-712-4902
    */
   public static generateOrderId(productCode: string, size: string, phone: string): string {
-    let cleanProductCode = productCode.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '');
-    const cleanSize = size ? size.trim().toUpperCase() : '';
-    const cleanPhone = phone.trim().replace(/\D/g, '');
-    const lastThreePhone = cleanPhone.length >= 3 ? cleanPhone.slice(-3) : cleanPhone.padStart(3, '0');
+    const cleanPhone = (phone || '').trim().replace(/\D/g, '');
+    const lastThreePhone = cleanPhone.length >= 3 ? cleanPhone.slice(-3) : '000';
     
     const now = new Date();
     const minute = now.getMinutes().toString().padStart(2, '0');
     const second = now.getSeconds().toString().padStart(2, '0');
     const timeStamp = `${minute}${second}`;
 
-    const endsWithAnySizeRegex = /-(S|M|L|XL|XXL|36|37|38|39|40|41|42|43|44|45)$/i;
-    let codeWithSize = cleanProductCode;
-    if (cleanSize && !endsWithAnySizeRegex.test(cleanProductCode) && !cleanProductCode.endsWith(`-${cleanSize}`)) {
-      codeWithSize = `${cleanProductCode}-${cleanSize}`;
+    const rawCode = (productCode || '').trim();
+
+    // Çoklu ürün kontrolü (virgül, boşluk veya çok uzun karakter var mı)
+    let baseCode = 'ORD';
+    if (rawCode && !rawCode.includes(',') && !rawCode.includes(' ') && rawCode.length <= 15) {
+      baseCode = rawCode.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 10);
     }
 
-    return `${codeWithSize}-${lastThreePhone}-${timeStamp}`;
+    return `BRN-${baseCode}-${lastThreePhone}-${timeStamp}`;
   }
 
   /**
@@ -66,10 +75,15 @@ export class OrderService {
     const firstName = nameParts[0] || data.customerName;
     const lastName = nameParts.slice(1).join(' ') || '';
 
+    const unitPrice = data.unitPrice || 0;
+    const shippingFee = data.shippingFee || 0;
+    const discount = data.discount || 0;
+    const totalPrice = data.totalPrice || 0;
+
     try {
       const stmt = db.prepare(`
-        INSERT INTO orders (order_id, first_name, last_name, customer_phone, address, product_code, product_name, size, quantity, status, sender_id, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO orders (order_id, first_name, last_name, customer_phone, address, product_code, product_name, size, quantity, unit_price, shipping_fee, discount, total_price, status, sender_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       stmt.run(
@@ -82,6 +96,10 @@ export class OrderService {
         data.productName || data.productCode,
         data.size,
         data.quantity,
+        unitPrice,
+        shippingFee,
+        discount,
+        totalPrice,
         status,
         senderId,
         createdAt
@@ -101,8 +119,18 @@ export class OrderService {
     }
 
     return {
-      ...data,
       orderId,
+      customerName: data.customerName,
+      customerPhone: data.customerPhone,
+      address: data.address,
+      productCode: data.productCode,
+      productName: data.productName,
+      size: data.size,
+      quantity: data.quantity,
+      unitPrice,
+      shippingFee,
+      discount,
+      totalPrice,
       createdAt,
       status,
       senderId
@@ -110,12 +138,59 @@ export class OrderService {
   }
 
   /**
-   * Tüm siparişleri SQLite veritabanından getirir.
+   * Tüm siparişleri SQLite veritabanından getirir (Self-Healing Korumalı).
    */
   public static async getOrders(): Promise<SavedOrder[]> {
     try {
+      // 1. Tablo veya Kolon Eksikse Anında Tamir Et (Self-Healing Schema)
+      try {
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_id TEXT UNIQUE NOT NULL,
+            first_name TEXT NOT NULL,
+            last_name TEXT DEFAULT '',
+            customer_phone TEXT NOT NULL,
+            address TEXT NOT NULL,
+            product_code TEXT NOT NULL,
+            product_name TEXT DEFAULT '',
+            size TEXT DEFAULT '',
+            quantity INTEGER NOT NULL DEFAULT 1,
+            unit_price REAL NOT NULL DEFAULT 0,
+            shipping_fee REAL NOT NULL DEFAULT 0,
+            discount REAL NOT NULL DEFAULT 0,
+            total_price REAL NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'BEKLEMEDE',
+            sender_id TEXT DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+        try { db.exec(`ALTER TABLE orders ADD COLUMN unit_price REAL NOT NULL DEFAULT 0;`); } catch (e) {}
+        try { db.exec(`ALTER TABLE orders ADD COLUMN shipping_fee REAL NOT NULL DEFAULT 0;`); } catch (e) {}
+        try { db.exec(`ALTER TABLE orders ADD COLUMN discount REAL NOT NULL DEFAULT 0;`); } catch (e) {}
+        try { db.exec(`ALTER TABLE orders ADD COLUMN total_price REAL NOT NULL DEFAULT 0;`); } catch (e) {}
+        try { db.exec(`ALTER TABLE orders ADD COLUMN sender_id TEXT DEFAULT '';`); } catch (e) {}
+      } catch (err) {}
+
       const stmt = db.prepare(`
-        SELECT order_id as orderId, first_name, last_name, customer_phone as customerPhone, address, product_code as productCode, product_name as productName, size, quantity, status, sender_id as senderId, created_at as createdAt
+        SELECT 
+          order_id as orderId, 
+          first_name, 
+          last_name, 
+          customer_phone as customerPhone, 
+          address, 
+          product_code as productCode, 
+          product_name as productName, 
+          size, 
+          quantity, 
+          unit_price as unitPrice,
+          shipping_fee as shippingFee,
+          discount,
+          total_price as totalPrice,
+          status, 
+          sender_id as senderId, 
+          created_at as createdAt
         FROM orders
         ORDER BY id DESC
       `);
@@ -130,6 +205,10 @@ export class OrderService {
         productName: r.productName || r.productCode,
         size: r.size,
         quantity: r.quantity,
+        unitPrice: Number(r.unitPrice) || 0,
+        shippingFee: Number(r.shippingFee) || 0,
+        discount: Number(r.discount) || 0,
+        totalPrice: Number(r.totalPrice) || 0,
         createdAt: r.createdAt,
         status: r.status,
         senderId: r.senderId || ''
@@ -141,9 +220,9 @@ export class OrderService {
   }
 
   /**
-   * Sipariş Onay / Red İşlemi (Sipariş Reddedilirse (DEC) Stoğu +1 İade Eder, OK yapılırsa alıcıya onay mesajı yollar!)
+   * Sipariş Onay / Red İşlemi (Sipariş Reddedilirse (DEC) Stoğu +1 İade Eder, Red sebebini Instagram DM gönderir!)
    */
-  public static async updateOrderStatus(orderId: string, status: 'OK' | 'DEC'): Promise<boolean> {
+  public static async updateOrderStatus(orderId: string, status: 'OK' | 'DEC', reason?: string): Promise<boolean> {
     try {
       const existingOrder = db.prepare(`SELECT * FROM orders WHERE order_id = ?`).get(orderId) as any;
       if (!existingOrder) {
@@ -161,10 +240,26 @@ export class OrderService {
       if (result.changes > 0) {
         console.log(`[OrderService SQLite] ✅ Sipariş (${orderId}) Durumu Güncellendi: ${prevStatus} -> ${status}`);
 
-        // 1. SİPARİŞ REDDEDİLDİYSE (DEC): Stoğu +1 İade Et!
+        // 1. SİPARİŞ REDDEDİLDİYSE (DEC): Stoğu +1 İade Et & Müşteriye Red Sebebini DM Gönder!
         if (status === 'DEC' && prevStatus !== 'DEC') {
           console.log(`[OrderService] 🔄 Sipariş reddedildi, ${targetProductCode} (${existingOrder.size}) stoğuna +${qty} iade ediliyor...`);
           await StockService.restoreStock(targetProductCode, qty, existingOrder.size);
+
+          const senderId = (existingOrder.sender_id || existingOrder.senderId || '').trim();
+          console.log(`[OrderService] 📤 Sipariş Red DM işlemi başlatıldı. OrderID: ${orderId}, SenderID: ${senderId}`);
+
+          if (senderId) {
+            const customerName = `${existingOrder.first_name || ''} ${existingOrder.last_name || ''}`.trim() || 'Müşterimiz';
+            const defaultReason = 'Siparişiniz operasyonel nedenlerle onaylanamamıştır.';
+            const cleanReason = reason && reason.trim() ? reason.trim() : defaultReason;
+
+            const dmMessage = `Sayın ${customerName},\n\nSiparişiniz (#${orderId}) maalesef onaylanamamıştır.\n\nİptal / Red Nedeni:\n${cleanReason}\n\nAnlayışınız için teşekkür eder, keyifli günler dileriz. 🌸`;
+
+            const sent = await FacebookService.sendMessage(senderId, dmMessage);
+            console.log(`[OrderService] 📤 Red DM gönderim sonucu: ${sent}`);
+          } else {
+            console.warn(`[OrderService] ⚠️ Siparişte (ID: ${orderId}) sender_id bilgisi bulunamadığı için DM yollanamadı.`);
+          }
         }
         // 2. Sipariş ONAYLANDIYSA (OK): Müşteriye "Siparişiniz Onaylandı" Mesajı Gönder!
         else if (status === 'OK') {

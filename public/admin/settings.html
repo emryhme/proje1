@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BARON'S SILLAGE — Ayarlar & Kargo Fiyatlandırması</title>
+
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="layout">
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+    <a href="index.html" class="logo">
+        <div class="logo-mark">
+            <i data-lucide="crown" size="20"></i>
+        </div>
+        BARON'S<span> SILLAGE</span>
+    </a>
+
+    <div class="section-title">ANA MENÜ</div>
+
+    <a href="index.html" class="nav-item">
+        <i data-lucide="layout-dashboard"></i>
+        Dashboard & Stok
+    </a>
+
+    <a href="orders.html" class="nav-item">
+        <i data-lucide="shopping-cart"></i>
+        Siparişler
+        <span class="nav-badge" id="ordersBadgeCount">0</span>
+    </a>
+
+    <a href="new-product.html" class="nav-item">
+        <i data-lucide="package-plus"></i>
+        Yeni Ürün Girişi
+    </a>
+
+    <a href="campaigns.html" class="nav-item">
+        <i data-lucide="badge-percent"></i>
+        Kampanyalar
+    </a>
+
+    <a href="rewards.html" class="nav-item">
+        <i data-lucide="gift"></i>
+        VIP Ödüller
+    </a>
+
+    <div class="section-title">SaaS MAĞAZA YÖNETİMİ</div>
+
+    <a href="stores.html" class="nav-item">
+        <i data-lucide="store"></i>
+        🏢 Mağazalar & Müşteriler
+    </a>
+
+    <div class="section-title">AI & MAĞAZA YÖNETİMİ</div>
+
+    <a href="ai-product.html" class="nav-item">
+        <i data-lucide="sparkles"></i>
+        F.R.I.D.A.Y. AI Copilot
+    </a>
+
+    <a href="settings.html" class="nav-item active">
+        <i data-lucide="settings"></i>
+        Fiyat & Kargo Ayarları
+    </a>
+
+    <div class="section-title">SİSTEM & ALTYAPI</div>
+
+    <a href="api-settings.html" class="nav-item">
+        <i data-lucide="sliders"></i>
+        API & AI Kişiselleştirme
+    </a>
+
+    <div class="sidebar-bottom">
+        <div class="store-card">
+            <div class="store-avatar">B</div>
+            <div class="store-info">
+                <strong>BARON'S SILLAGE</strong>
+                <small>Enterprise Admin Console</small>
+            </div>
+            <i data-lucide="chevron-down" size="15" style="margin-left:auto;color:#9ca3af"></i>
+        </div>
+    </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+
+    <!-- TOPBAR -->
+    <header class="topbar">
+        <div style="display:flex;align-items:center;gap:10px">
+            <button class="icon-button mobile-menu" onclick="toggleSidebar()">
+                <i data-lucide="menu"></i>
+            </button>
+
+            <div class="search">
+                <i data-lucide="search" size="15"></i>
+                <input type="text" placeholder="Ayar veya parametre ara...">
+                <span style="font-size:9px;color:#9ca3af">⌘ K</span>
+            </div>
+        </div>
+
+        <div class="top-actions">
+            <div class="sync-badge" id="syncStatusBadge" style="margin-right:8px;">
+                <span class="pulse-dot"></span>
+                <span>Live SQLite & Sheet Sync</span>
+            </div>
+
+            <button class="icon-button" id="btnToggleSound" title="Bildirim Sesleri">
+                <i data-lucide="bell" size="17"></i>
+                <span class="notification-dot"></span>
+            </button>
+
+            <button class="icon-button" id="btnRefreshData" title="Verileri Yenile">
+                <i data-lucide="refresh-cw" size="17"></i>
+            </button>
+
+            <button class="icon-button" id="btnOpenSystemSettings" title="API & AI Kişiselleştirme Ayarları" onclick="openSystemSettingsModal()">
+                <i data-lucide="sliders" size="17"></i>
+            </button>
+
+            <div class="user">
+                <div class="avatar">TS</div>
+                <div class="user-text">
+                    <strong>Tony Stark</strong>
+                    <span>Mağaza Sahibi (Patron)</span>
+                </div>
+                <i data-lucide="chevron-down" size="13"></i>
+            </div>
+        </div>
+    </header>
+
+    <!-- CONTENT -->
+    <section class="content">
+
+        <div class="page-header">
+            <div class="page-title">
+                <h1>Fiyat & Kargo Ayarları</h1>
+                <p>Kargo fiyatları, ücretsiz kargo limiti ve mağaza varsayılan parametreleri.</p>
+            </div>
+        </div>
+
+        <!-- FORM CARD -->
+        <div class="card table-card">
+            <div class="table-header">
+                <div class="table-title">🚚 Kargo ve Mağaza Parametreleri</div>
+            </div>
+
+            <form id="settingsForm">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Sabit Kargo Ücreti (TL)</label>
+                        <input type="number" id="settingShippingFee" placeholder="49" min="0" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Ücretsiz Kargo Sepet Limiti (TL)</label>
+                        <input type="number" id="settingFreeThreshold" placeholder="1500" min="0" required>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">
+                        <i data-lucide="save" size="14"></i>
+                        Ayarları Kaydet
+                    </button>
+                </div>
+            </form>
+        </div>
+
+    </section>
+</main>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="app.js"></script>
+<script>
+  function toggleSidebar(){
+    document.getElementById("sidebar").classList.toggle("open");
+  }
+  lucide.createIcons();
+</script>
+</body>
+</html>
