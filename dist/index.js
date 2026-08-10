@@ -50,17 +50,12 @@ const basicAuth = (req, res, next) => {
         return res.status(401).send('❌ Hatalı kullanıcı adı veya şifre.');
     }
 };
-// Yönetim Paneli ve Dashboard (Şifreli)
-app.use('/admin', basicAuth, express_1.default.static(path_1.default.join(__dirname, '../public/admin')));
-app.get('/admin', basicAuth, (req, res) => {
+// Yönetim Paneli ve Statik Dosyalar (Şifresiz Direkt Erişim)
+app.use('/admin', express_1.default.static(path_1.default.join(__dirname, '../public/admin')));
+app.get('/admin', (req, res) => {
     res.sendFile(path_1.default.join(__dirname, '../public/admin/index.html'));
 });
-app.use('/', (req, res, next) => {
-    if (req.path === '/webhook/instagram' || req.path.startsWith('/webhook') || req.path.startsWith('/api')) {
-        return next();
-    }
-    return basicAuth(req, res, next);
-}, express_1.default.static(path_1.default.join(__dirname, '../public')));
+app.use('/', express_1.default.static(path_1.default.join(__dirname, '../public')));
 // Müşteri Sadakat Ödülleri API (user_rewards)
 app.get('/api/rewards', (req, res) => {
     try {

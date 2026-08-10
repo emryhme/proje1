@@ -53,18 +53,13 @@ const basicAuth = (req: express.Request, res: express.Response, next: express.Ne
   }
 };
 
-// Yönetim Paneli ve Dashboard (Şifreli)
-app.use('/admin', basicAuth, express.static(path.join(__dirname, '../public/admin')));
-app.get('/admin', basicAuth, (req, res) => {
+// Yönetim Paneli ve Statik Dosyalar (Şifresiz Direkt Erişim)
+app.use('/admin', express.static(path.join(__dirname, '../public/admin')));
+app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/admin/index.html'));
 });
 
-app.use('/', (req, res, next) => {
-  if (req.path === '/webhook/instagram' || req.path.startsWith('/webhook') || req.path.startsWith('/api')) {
-    return next();
-  }
-  return basicAuth(req, res, next);
-}, express.static(path.join(__dirname, '../public')));
+app.use('/', express.static(path.join(__dirname, '../public')));
 
 // Müşteri Sadakat Ödülleri API (user_rewards)
 app.get('/api/rewards', (req, res) => {
