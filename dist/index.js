@@ -199,7 +199,7 @@ app.post('/api/ai/admin-copilot', async (req, res) => {
     }
     catch (err) {
         console.error('[API /api/ai/admin-copilot Error]:', err);
-        res.status(500).json({ success: false, error: err.message || 'Sunucu hatası' });
+        res.status(500).json({ success: false, error: err.message || 'Sunucu hatası', reply: `❌ Hata: ${err.message || 'Sunucu hatası. Lütfen API anahtarlarınızı kontrol edin.'}` });
     }
 });
 // Web Chat & Simulator API End-point'i

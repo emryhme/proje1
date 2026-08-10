@@ -1688,7 +1688,7 @@ async function sendAdminChatMessage() {
     const data = await res.json();
     loadingBubble.remove();
 
-    const replyText = (data && data.reply) ? data.reply : '❌ Bir hata oluştu.';
+    const replyText = (data && data.reply) ? data.reply : (data && data.error ? `❌ ${data.error}` : '❌ Bir hata oluştu.');
 
     // Append AI Response Bubble
     const aiBubble = document.createElement('div');

@@ -11,14 +11,14 @@ import { db } from '../database/db';
  */
 export class AdminCopilotService {
   private static getApiKey(): string {
-    return env.openaiApiKey || env.geminiApiKey || 'DUMMY_KEY';
+    return (process.env.OPENAI_API_KEY || env.openaiApiKey || '').trim().replace(/^["']|["']$/g, '');
   }
 
   public static async processAdminCommand(userPrompt: string): Promise<string> {
     const apiKey = this.getApiKey();
 
-    if (!apiKey || apiKey === 'DUMMY_KEY') {
-      return "⚠️ Patron, geçerli bir OPENAI_API_KEY veya GEMINI_API_KEY bulunamadı. Lütfen .env dosyanızı kontrol ediniz.";
+    if (!apiKey || apiKey === 'DUMMY_KEY' || apiKey.length < 10) {
+      return "⚠️ Patron, sunucuda geçerli bir OPENAI_API_KEY bulunamadı. Lütfen sunucudaki `.env` dosyanıza `OPENAI_API_KEY=sk-...` anahtarınızı ekleyip `pm2 restart proje1` çalıştırın.";
     }
 
     // 1. Stok Güncelleme Aracı

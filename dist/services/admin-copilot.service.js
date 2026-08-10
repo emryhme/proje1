@@ -13,12 +13,12 @@ const db_1 = require("../database/db");
  */
 class AdminCopilotService {
     static getApiKey() {
-        return env_1.env.openaiApiKey || env_1.env.geminiApiKey || 'DUMMY_KEY';
+        return (process.env.OPENAI_API_KEY || env_1.env.openaiApiKey || '').trim().replace(/^["']|["']$/g, '');
     }
     static async processAdminCommand(userPrompt) {
         const apiKey = this.getApiKey();
-        if (!apiKey || apiKey === 'DUMMY_KEY') {
-            return "⚠️ Patron, geçerli bir OPENAI_API_KEY veya GEMINI_API_KEY bulunamadı. Lütfen .env dosyanızı kontrol ediniz.";
+        if (!apiKey || apiKey === 'DUMMY_KEY' || apiKey.length < 10) {
+            return "⚠️ Patron, sunucuda geçerli bir OPENAI_API_KEY bulunamadı. Lütfen sunucudaki `.env` dosyanıza `OPENAI_API_KEY=sk-...` anahtarınızı ekleyip `pm2 restart proje1` çalıştırın.";
         }
         // 1. Stok Güncelleme Aracı
         const stokGuncelleTool = new tools_1.DynamicTool({
