@@ -103,16 +103,16 @@ export class MetaInstagramPayloadBuilder {
       return {
         title: (p.name || p.productCode).slice(0, 80),
         image_url: imgUrl,
-        subtitle: `💰 ${p.price} TL | ${stockStatus}`.slice(0, 80),
+        subtitle: `Fiyat: ${p.price} TL | ${stockStatus}`.slice(0, 80),
         buttons: [
           {
             type: 'postback',
-            title: '🛒 Sepete Ekle',
+            title: 'Sepete Ekle',
             payload: `ADD_TO_CART:${p.productCode}`
           },
           {
             type: 'postback',
-            title: '🔎 Detay',
+            title: 'Detay',
             payload: `PRODUCT_DETAIL:${p.productCode}`
           }
         ]
@@ -315,7 +315,7 @@ export class InstagramMessageService {
         `${idx + 1}. **${p.name}** (${p.productCode})\n   • Fiyat: ${p.price} TL | Stok: ${p.stock > 0 ? `${p.stock} adet` : 'Tükendi'}`
       ).join('\n\n');
 
-      const fallbackText = `🛍️ **ÜRÜNLERİMİZ:**\n\n${fallbackList}\n\nBir ürünün adını yazarak veya "Sepete Ekle" diyerek sipariş verebilirsiniz.`;
+      const fallbackText = `**ÜRÜNLERİMİZ:**\n\n${fallbackList}\n\nBir ürünün adını yazarak veya "Sepete Ekle" diyerek sipariş verebilirsiniz.`;
       await this.sendText(recipientId, fallbackText);
       return errRes;
     }
@@ -327,10 +327,10 @@ export class InstagramMessageService {
   public static async sendMainMenu(recipientId: string, customText?: string): Promise<MetaApiResponse> {
     const text = customText || 'Müşteri hizmetlerine hoş geldiniz! Size nasıl yardımcı olabilirim?';
     const replies: QuickReplyItem[] = [
-      { title: '👕 Ürünler', payload: 'PRODUCT_LIST' },
-      { title: '🛒 Sepetim', payload: 'MY_CART' },
-      { title: '📦 Siparişlerim', payload: 'MY_ORDERS' },
-      { title: '👤 Destek', payload: 'HUMAN_SUPPORT' }
+      { title: 'Ürünler', payload: 'PRODUCT_LIST' },
+      { title: 'Sepetim', payload: 'MY_CART' },
+      { title: 'Siparişlerim', payload: 'MY_ORDERS' },
+      { title: 'Destek', payload: 'HUMAN_SUPPORT' }
     ];
     return this.sendQuickReplies(recipientId, text, replies);
   }

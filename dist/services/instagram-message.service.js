@@ -73,16 +73,16 @@ class MetaInstagramPayloadBuilder {
             return {
                 title: (p.name || p.productCode).slice(0, 80),
                 image_url: imgUrl,
-                subtitle: `💰 ${p.price} TL | ${stockStatus}`.slice(0, 80),
+                subtitle: `Fiyat: ${p.price} TL | ${stockStatus}`.slice(0, 80),
                 buttons: [
                     {
                         type: 'postback',
-                        title: '🛒 Sepete Ekle',
+                        title: 'Sepete Ekle',
                         payload: `ADD_TO_CART:${p.productCode}`
                     },
                     {
                         type: 'postback',
-                        title: '🔎 Detay',
+                        title: 'Detay',
                         payload: `PRODUCT_DETAIL:${p.productCode}`
                     }
                 ]
@@ -247,7 +247,7 @@ class InstagramMessageService {
             // Fallback: Biçimlendirilmiş Düz Metin Ürün Kataloğu
             console.warn(`[InstagramMessage Fallback] ⚠️ Carousel başarısız oldu, metin katalog fallback'ine geçiliyor...`);
             const fallbackList = products.map((p, idx) => `${idx + 1}. **${p.name}** (${p.productCode})\n   • Fiyat: ${p.price} TL | Stok: ${p.stock > 0 ? `${p.stock} adet` : 'Tükendi'}`).join('\n\n');
-            const fallbackText = `🛍️ **ÜRÜNLERİMİZ:**\n\n${fallbackList}\n\nBir ürünün adını yazarak veya "Sepete Ekle" diyerek sipariş verebilirsiniz.`;
+            const fallbackText = `**ÜRÜNLERİMİZ:**\n\n${fallbackList}\n\nBir ürünün adını yazarak veya "Sepete Ekle" diyerek sipariş verebilirsiniz.`;
             await this.sendText(recipientId, fallbackText);
             return errRes;
         }
@@ -258,10 +258,10 @@ class InstagramMessageService {
     static async sendMainMenu(recipientId, customText) {
         const text = customText || 'Müşteri hizmetlerine hoş geldiniz! Size nasıl yardımcı olabilirim?';
         const replies = [
-            { title: '👕 Ürünler', payload: 'PRODUCT_LIST' },
-            { title: '🛒 Sepetim', payload: 'MY_CART' },
-            { title: '📦 Siparişlerim', payload: 'MY_ORDERS' },
-            { title: '👤 Destek', payload: 'HUMAN_SUPPORT' }
+            { title: 'Ürünler', payload: 'PRODUCT_LIST' },
+            { title: 'Sepetim', payload: 'MY_CART' },
+            { title: 'Siparişlerim', payload: 'MY_ORDERS' },
+            { title: 'Destek', payload: 'HUMAN_SUPPORT' }
         ];
         return this.sendQuickReplies(recipientId, text, replies);
     }

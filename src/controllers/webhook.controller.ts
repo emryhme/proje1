@@ -128,8 +128,8 @@ export class WebhookController {
       console.log(`[InstagramMessage] Product validated: ${stockCheck.exists ? 'YES' : 'NO'}`);
 
       if (!stockCheck.exists) {
-        console.warn(`[InstagramMessage] ❌ Ürün veritabanında bulunamadı (${productCode})`);
-        return InstagramMessageService.sendText(senderId, `❌ Üzgünüz, (${productCode}) kodlu ürün sistemimizde bulunamadı.`);
+        console.warn(`[InstagramMessage] Ürün veritabanında bulunamadı (${productCode})`);
+        return InstagramMessageService.sendText(senderId, `Üzgünüz, (${productCode}) kodlu ürün sistemimizde bulunamadı.`);
       }
 
       const prodItem = stockCheck.product || {};
@@ -139,10 +139,10 @@ export class WebhookController {
         console.warn(`[InstagramMessage] Stock check failed for ${productCode}`);
         return InstagramMessageService.sendQuickReplies(
           senderId, 
-          `❌ Üzgünüz, **${prodItem.name || productCode}** şu anda stokta tükenmiştir.`,
+          `Üzgünüz, **${prodItem.name || productCode}** şu anda stokta tükenmiştir.`,
           [
-            { title: '👕 Diğer Ürünler', payload: 'PRODUCT_LIST' },
-            { title: '👤 Destek', payload: 'HUMAN_SUPPORT' }
+            { title: 'Diğer Ürünler', payload: 'PRODUCT_LIST' },
+            { title: 'Destek', payload: 'HUMAN_SUPPORT' }
           ]
         );
       }
@@ -157,9 +157,9 @@ export class WebhookController {
         senderId,
         `${cartRes.message}\n\nBaşka bir işlem yapmak ister misiniz?`,
         [
-          { title: '🛒 Sepetim', payload: 'MY_CART' },
-          { title: '👕 Ürünler', payload: 'PRODUCT_LIST' },
-          { title: '👤 Destek', payload: 'HUMAN_SUPPORT' }
+          { title: 'Sepetim', payload: 'MY_CART' },
+          { title: 'Ürünler', payload: 'PRODUCT_LIST' },
+          { title: 'Destek', payload: 'HUMAN_SUPPORT' }
         ]
       );
     }
@@ -171,18 +171,18 @@ export class WebhookController {
 
       const prod = await StockService.checkStock(productCode);
       if (!prod.exists || !prod.product) {
-        return InstagramMessageService.sendText(senderId, `❌ (${productCode}) detay bilgisine ulaşılamadı.`);
+        return InstagramMessageService.sendText(senderId, `(${productCode}) detay bilgisine ulaşılamadı.`);
       }
 
       const item = prod.product;
-      const detailText = `🔍 **ÜRÜN DETAYI:**\n\n• **Ürün Adı:** ${item.name || productCode}\n• **Ürün Kodu:** ${item.productCode}\n• **Satış Fiyatı:** ${item.price} TL\n• **Beden Options:** ${item.size || 'S, M, L, XL'}\n• **Stok Durumu:** ${prod.inStock ? `✅ Stokta Var (${item.stock} adet)` : '❌ Tükendi'}`;
+      const detailText = `**ÜRÜN DETAYI:**\n\n• **Ürün Adı:** ${item.name || productCode}\n• **Ürün Kodu:** ${item.productCode}\n• **Satış Fiyatı:** ${item.price} TL\n• **Beden Options:** ${item.size || 'S, M, L, XL'}\n• **Stok Durumu:** ${prod.inStock ? `Stokta Var (${item.stock} adet)` : 'Tükendi'}`;
 
       return InstagramMessageService.sendButtonMessage(
         senderId,
         detailText,
         [
-          { title: '🛒 Sepete Ekle', payload: `ADD_TO_CART:${item.productCode || productCode}` },
-          { title: '👕 Tüm Ürünler', payload: 'PRODUCT_LIST' }
+          { title: 'Sepete Ekle', payload: `ADD_TO_CART:${item.productCode || productCode}` },
+          { title: 'Tüm Ürünler', payload: 'PRODUCT_LIST' }
         ]
       );
     }
@@ -204,10 +204,10 @@ export class WebhookController {
       if (!cart || cart.length === 0) {
         return InstagramMessageService.sendQuickReplies(
           senderId,
-          '🛒 Sepetiniz şu anda boş. Hemen harika ürünlerimizi inceleyebilirsiniz!',
+          'Sepetiniz şu anda boş. Hemen ürünlerimizi inceleyebilirsiniz!',
           [
-            { title: '👕 Ürün Kataloğu', payload: 'PRODUCT_LIST' },
-            { title: '👤 Destek', payload: 'HUMAN_SUPPORT' }
+            { title: 'Ürün Kataloğu', payload: 'PRODUCT_LIST' },
+            { title: 'Destek', payload: 'HUMAN_SUPPORT' }
           ]
         );
       }
@@ -219,14 +219,14 @@ export class WebhookController {
         return `${idx + 1}. **${item.productName}** (${item.size} Beden)\n   ${item.quantity} Adet × ${item.unitPrice} TL = ${itemTotal} TL`;
       }).join('\n\n');
 
-      const cartText = `🛒 **SEPETİNİZ:**\n\n${cartListStr}\n\n💰 **Toplam Tutar:** ${total} TL`;
+      const cartText = `**SEPETİNİZ:**\n\n${cartListStr}\n\n**Toplam Tutar:** ${total} TL`;
 
       return InstagramMessageService.sendButtonMessage(
         senderId,
         cartText,
         [
-          { title: '🛍️ Sipariş Ver', payload: 'CHECKOUT' },
-          { title: '👕 Ürün Ekle', payload: 'PRODUCT_LIST' }
+          { title: 'Sipariş Ver', payload: 'CHECKOUT' },
+          { title: 'Ürün Ekle', payload: 'PRODUCT_LIST' }
         ]
       );
     }
@@ -240,10 +240,10 @@ export class WebhookController {
       if (userOrders.length === 0) {
         return InstagramMessageService.sendQuickReplies(
           senderId,
-          '📦 Henüz kayıtlı bir siparişiniz bulunmuyor.',
+          'Henüz kayıtlı bir siparişiniz bulunmuyor.',
           [
-            { title: '👕 Ürünler', payload: 'PRODUCT_LIST' },
-            { title: '👤 Destek', payload: 'HUMAN_SUPPORT' }
+            { title: 'Ürünler', payload: 'PRODUCT_LIST' },
+            { title: 'Destek', payload: 'HUMAN_SUPPORT' }
           ]
         );
       }
@@ -254,10 +254,10 @@ export class WebhookController {
 
       return InstagramMessageService.sendQuickReplies(
         senderId,
-        `📦 **SON SİPARİŞLERİNİZ:**\n\n${ordersStr}`,
+        `**SON SİPARİŞLERİNİZ:**\n\n${ordersStr}`,
         [
-          { title: '👕 Ürünler', payload: 'PRODUCT_LIST' },
-          { title: '👤 Destek', payload: 'HUMAN_SUPPORT' }
+          { title: 'Ürünler', payload: 'PRODUCT_LIST' },
+          { title: 'Destek', payload: 'HUMAN_SUPPORT' }
         ]
       );
     }
@@ -266,7 +266,7 @@ export class WebhookController {
     if (rawAction === 'HUMAN_SUPPORT' || text.toLowerCase().includes('canlı destek') || text.toLowerCase() === 'destek') {
       return InstagramMessageService.sendText(
         senderId,
-        '👤 **Müşteri Temsilcimiz:** Temsilcimiz en kısa sürede sizinle ilgilenecektir. Lütfen sormak istediğiniz konuyu doğrudan yazabilirsiniz.'
+        '**Müşteri Temsilcimiz:** Temsilcimiz en kısa sürede sizinle ilgilenecektir. Lütfen sormak istediğiniz konuyu doğrudan yazabilirsiniz.'
       );
     }
 

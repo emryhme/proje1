@@ -53,7 +53,7 @@ class CartService {
         }
         return {
             success: true,
-            message: `🛒 **${prod.name || productCode}** (${targetSize} Beden, ${quantity} Adet) sepetinize başarıyla eklendi!`,
+            message: `**${prod.name || productCode}** (${targetSize} Beden, ${quantity} Adet) sepetinize başarıyla eklendi!`,
             cartItem: {
                 productCode: targetCode,
                 productName: prod.name || productCode,
