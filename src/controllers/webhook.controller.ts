@@ -97,22 +97,14 @@ export class WebhookController {
         if (!senderId) continue;
 
         // ─────────────────────────────────────────
-        // SUGGESTED_TEXT payload → Mesaj olarak buffer'a yönlendir
+        // SUGGESTED_TEXT payload → Mesaj olarak anında işlet (0 buffer wait)
         // Dynamic Quick Reply butonuna basıldığında buraya düşer
         // ─────────────────────────────────────────
         if (payload && QuickReplyBuilderService.isSuggestedText(payload)) {
           const decodedText = QuickReplyBuilderService.decodeSuggestedText(payload);
           if (decodedText) {
-            console.log(`[WebhookController Messaging] SUGGESTED_TEXT decoded: "${decodedText}" (senderId: ${senderId})`);
-            MessageBufferService.addMessage(
-              'default',
-              'instagram',
-              senderId,
-              decodedText,
-              async (_convKey, _storeId, _channel, userId, combinedText) => {
-                await WebhookController.processEventOrReply(userId, combinedText, '');
-              }
-            );
+            console.log(`[WebhookController Messaging] SUGGESTED_TEXT decoded & INSTANT EXECUTE: "${decodedText}" (senderId: ${senderId})`);
+            WebhookController.processEventOrReply(senderId, decodedText, '');
           }
           continue;
         }
@@ -184,7 +176,7 @@ export class WebhookController {
       const lowerText = cleanText.toLowerCase().trim();
 
       // Alias Normalizasyonları
-      if (rawAction === 'CHECKOUT_COMPLETE') rawAction = 'CHECKOUT_CONFIRM';
+      if (rawAction === 'CHECKOUT' || rawAction === 'CHECKOUT_COMPLETE') rawAction = 'CHECKOUT_CONFIRM';
       if (rawAction === 'ADD_PRODUCT') rawAction = 'ADD_MORE_PRODUCTS';
       if (rawAction === 'CANCEL') rawAction = 'CANCEL_CHECKOUT';
 
@@ -553,7 +545,7 @@ export class WebhookController {
           senderId,
           cartText,
           [
-            { title: 'Sipariş Ver', payload: 'CHECKOUT' },
+            { title: 'Sipariş Ver', payload: 'CHECKOUT_CONFIRM' },
             { title: 'Ürün Ekle', payload: 'PRODUCT_LIST' }
           ]
         );
