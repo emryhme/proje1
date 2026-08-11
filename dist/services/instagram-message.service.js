@@ -178,6 +178,9 @@ class InstagramMessageService {
      * 2. Quick Replies Etkileşimli Butonlu Mesaj Gönderir
      */
     static async sendQuickReplies(recipientId, text, replies) {
+        if (!replies || replies.length === 0) {
+            return this.sendText(recipientId, text);
+        }
         if (this.isMock(recipientId)) {
             console.log(`[InstagramMessage Mock QuickReplies -> ${recipientId}]: ${text}\nReplies:`, replies.map(r => r.title));
             return { success: true, isMocked: true, messageId: `mock_qr_${Date.now()}` };
@@ -200,6 +203,9 @@ class InstagramMessageService {
         }
     }
     static async sendButtonMessage(recipientId, text, buttons) {
+        if (!buttons || buttons.length === 0) {
+            return this.sendText(recipientId, text);
+        }
         if (this.isMock(recipientId)) {
             console.log(`[InstagramMessage Mock ButtonMessage -> ${recipientId}]: ${text}\nButtons:`, buttons.map(b => b.title));
             return { success: true, isMocked: true, messageId: `mock_btn_${Date.now()}` };
@@ -213,6 +219,9 @@ class InstagramMessageService {
      * Instagram DM standartlarına tam uyumlu quick replies kullanır.
      */
     static async sendButtonsOrQuickReplies(recipientId, text, options) {
+        if (!options || options.length === 0) {
+            return this.sendText(recipientId, text);
+        }
         const quickReplies = options.map(opt => ({
             title: opt.title,
             payload: opt.payload

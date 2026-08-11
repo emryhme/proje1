@@ -448,14 +448,12 @@ class WebhookController {
                 if (!qrItems || qrItems.length === 0) {
                     qrItems = await quick_reply_builder_service_1.QuickReplyBuilderService.autoDetectOptions(reply, shortCode, selectedSize, selectedColor);
                 }
-                if (qrItems.length > 0) {
+                if (qrItems && qrItems.length > 0) {
                     const instagramReplies = qrItems.map(qr => ({ title: qr.title, payload: qr.payload }));
                     await instagram_message_service_1.InstagramMessageService.sendButtonsOrQuickReplies(senderId, reply, instagramReplies);
                 }
                 else {
-                    const fallbackItems = quick_reply_builder_service_1.QuickReplyBuilderService.buildFallbackReplies();
-                    const fallbackReplies = fallbackItems.map(qr => ({ title: qr.title, payload: qr.payload }));
-                    await instagram_message_service_1.InstagramMessageService.sendButtonsOrQuickReplies(senderId, reply, fallbackReplies);
+                    await instagram_message_service_1.InstagramMessageService.sendText(senderId, reply);
                 }
             }
             catch (error) {

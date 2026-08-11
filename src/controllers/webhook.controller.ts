@@ -578,13 +578,11 @@ export class WebhookController {
           );
         }
 
-        if (qrItems.length > 0) {
+        if (qrItems && qrItems.length > 0) {
           const instagramReplies = qrItems.map(qr => ({ title: qr.title, payload: qr.payload }));
           await InstagramMessageService.sendButtonsOrQuickReplies(senderId, reply, instagramReplies);
         } else {
-          const fallbackItems = QuickReplyBuilderService.buildFallbackReplies();
-          const fallbackReplies = fallbackItems.map(qr => ({ title: qr.title, payload: qr.payload }));
-          await InstagramMessageService.sendButtonsOrQuickReplies(senderId, reply, fallbackReplies);
+          await InstagramMessageService.sendText(senderId, reply);
         }
       } catch (error) {
         console.error(`[WebhookController] AI Mesaj işleme hatası (${senderId}):`, error);

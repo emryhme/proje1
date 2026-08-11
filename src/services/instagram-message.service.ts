@@ -223,6 +223,10 @@ export class InstagramMessageService {
     text: string, 
     replies: QuickReplyItem[]
   ): Promise<MetaApiResponse> {
+    if (!replies || replies.length === 0) {
+      return this.sendText(recipientId, text);
+    }
+
     if (this.isMock(recipientId)) {
       console.log(`[InstagramMessage Mock QuickReplies -> ${recipientId}]: ${text}\nReplies:`, replies.map(r => r.title));
       return { success: true, isMocked: true, messageId: `mock_qr_${Date.now()}` };
@@ -252,6 +256,10 @@ export class InstagramMessageService {
     text: string, 
     buttons: ButtonItem[]
   ): Promise<MetaApiResponse> {
+    if (!buttons || buttons.length === 0) {
+      return this.sendText(recipientId, text);
+    }
+
     if (this.isMock(recipientId)) {
       console.log(`[InstagramMessage Mock ButtonMessage -> ${recipientId}]: ${text}\nButtons:`, buttons.map(b => b.title));
       return { success: true, isMocked: true, messageId: `mock_btn_${Date.now()}` };
@@ -271,6 +279,10 @@ export class InstagramMessageService {
     text: string,
     options: ButtonItem[]
   ): Promise<MetaApiResponse> {
+    if (!options || options.length === 0) {
+      return this.sendText(recipientId, text);
+    }
+
     const quickReplies: QuickReplyItem[] = options.map(opt => ({
       title: opt.title,
       payload: opt.payload
