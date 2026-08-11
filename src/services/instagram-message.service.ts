@@ -240,9 +240,6 @@ export class InstagramMessageService {
     }
   }
 
-  /**
-   * 3. Buton Mesajı Gönderir (Button Template)
-   */
   public static async sendButtonMessage(
     recipientId: string, 
     text: string, 
@@ -269,6 +266,26 @@ export class InstagramMessageService {
       const quickReplies: QuickReplyItem[] = buttons.map(b => ({ title: b.title, payload: b.payload }));
       await this.sendQuickReplies(recipientId, text, quickReplies);
       return errRes;
+    }
+  }
+
+  /**
+   * 3b. Meta Limitlerine Göre Otomatik Buton veya Quick Reply Gönderir
+   * Sayı <= 3 ise Button Template, > 3 ise Quick Reply (Maks 13 adet) kullanılır.
+   */
+  public static async sendButtonsOrQuickReplies(
+    recipientId: string,
+    text: string,
+    options: ButtonItem[]
+  ): Promise<MetaApiResponse> {
+    if (options.length <= 3 && options.length > 0) {
+      return this.sendButtonMessage(recipientId, text, options);
+    } else {
+      const quickReplies: QuickReplyItem[] = options.map(opt => ({
+        title: opt.title,
+        payload: opt.payload
+      }));
+      return this.sendQuickReplies(recipientId, text, quickReplies);
     }
   }
 

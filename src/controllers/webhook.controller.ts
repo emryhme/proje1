@@ -9,6 +9,7 @@ import { StockService } from '../services/stock.service';
 import { OrderService } from '../services/order.service';
 import { MessageBufferService, buildConversationKey } from '../services/message-buffer.service';
 import { QuickReplyBuilderService } from '../services/quick-reply-builder.service';
+import { ConversationStateService } from '../services/conversation-state.service';
 
 function stripEmojis(str: string): string {
   if (!str) return '';
@@ -170,9 +171,178 @@ export class WebhookController {
       const rawAction = payload || cleanText || text;
       const lowerText = cleanText.toLowerCase().trim();
 
+      const stateKey = ConversationStateService.buildKey('default', 'instagram', senderId);
       const ctx = (AIService as any).getSessionContext(senderId);
 
-      // 1. ACTION: ADD_TO_CART:<productCode>[:size] veya "Sepete Ekle"
+      // ─────────────────────────────────────────────
+      // 1. SELECT_SIZE:<shortCode>:<size> Postback
+      // ─────────────────────────────────────────────
+      if (rawAction.startsWith('SELECT_SIZE:')) {
+        const parts = rawAction.split(':');
+        const shortCode = (parts[1] || '').trim().toUpperCase();
+        const size = (parts[2] || '').trim().toUpperCase();
+        console.log(`[ConversationState] SELECT_SIZE postback: shortCode=${shortCode}, size=${size}`);
+
+        const availableSizes = await StockService.getAvailableSizes(shortCode);
+        if (!availableSizes.includes(size)) {
+          console.warn(`[ConversationState] Invalid size selected: ${size} for ${shortCode}`);
+          return InstagramMessageService.sendText(senderId, `Üzgünüz, seçtiğiniz beden (${size}) mevcut değil.`);
+        }
+
+        ConversationStateService.transition(stateKey, 'SIZE_SELECTED', size);
+        const qtyOptions = await QuickReplyBuilderService.buildQuantityOptions(shortCode, size);
+        const promptText = `Beden olarak ${size} seçtiniz. Kaç adet almak istersiniz?`;
+        return InstagramMessageService.sendButtonsOrQuickReplies(senderId, promptText, qtyOptions);
+      }
+
+      // ─────────────────────────────────────────────
+      // 2. SELECT_COLOR:<shortCode>:<color> Postback
+      // ─────────────────────────────────────────────
+      if (rawAction.startsWith('SELECT_COLOR:')) {
+        const parts = rawAction.split(':');
+        const shortCode = (parts[1] || '').trim().toUpperCase();
+        const color = (parts[2] || '').trim().toUpperCase();
+        console.log(`[ConversationState] SELECT_COLOR postback: shortCode=${shortCode}, color=${color}`);
+
+        const availableColors = await StockService.getAvailableColors(shortCode);
+        if (!availableColors.includes(color)) {
+          console.warn(`[ConversationState] Invalid color selected: ${color} for ${shortCode}`);
+          return InstagramMessageService.sendText(senderId, `Üzgünüz, seçtiğiniz renk (${color}) mevcut değil.`);
+        }
+
+        ConversationStateService.transition(stateKey, 'COLOR_SELECTED', color);
+        const availableSizes = await StockService.getAvailableSizes(shortCode);
+        if (availableSizes.length > 0) {
+          const sizeOptions = await QuickReplyBuilderService.buildSizeOptions(shortCode);
+          const promptText = `Renk olarak ${color} seçtiniz. Lütfen beden tercihinizi yapın:`;
+          return InstagramMessageService.sendButtonsOrQuickReplies(senderId, promptText, sizeOptions);
+        } else {
+          const qtyOptions = await QuickReplyBuilderService.buildQuantityOptions(shortCode, undefined, color);
+          const promptText = `Renk olarak ${color} seçtiniz. Kaç adet almak istersiniz?`;
+          return InstagramMessageService.sendButtonsOrQuickReplies(senderId, promptText, qtyOptions);
+        }
+      }
+
+      // ─────────────────────────────────────────────
+      // 3. SELECT_QUANTITY:<shortCode>:<size>:<qty> Postback
+      // ─────────────────────────────────────────────
+      if (rawAction.startsWith('SELECT_QUANTITY:')) {
+        const parts = rawAction.split(':');
+        const shortCode = (parts[1] || '').trim().toUpperCase();
+        const size = parts[2] === 'NONE' ? undefined : (parts[2] || '').trim().toUpperCase();
+        const qty = parseInt(parts[3] || '1', 10);
+        console.log(`[ConversationState] SELECT_QUANTITY postback: shortCode=${shortCode}, size=${size}, qty=${qty}`);
+
+        const stock = await StockService.getStockForSizeColor(shortCode, size);
+        if (qty > stock) {
+          console.warn(`[ConversationState] Quantity ${qty} exceeds available stock ${stock}`);
+          return InstagramMessageService.sendText(senderId, `Üzgünüz, seçtiğiniz adet (${qty}) stok miktarını (${stock}) aşmaktadır.`);
+        }
+
+        const allRows = await StockService.fetchAllSheetRows();
+        const matchedProduct = allRows.find(r => r.shortCode.toUpperCase() === shortCode.toUpperCase() && (!size || r.size.toUpperCase() === size.toUpperCase()));
+        if (!matchedProduct) {
+          return InstagramMessageService.sendText(senderId, `Ürün bilgisi doğrulanamadı.`);
+        }
+
+        ConversationStateService.transition(stateKey, 'QUANTITY_SELECTED', qty);
+        const stateData = ConversationStateService.getState(stateKey);
+        stateData.productCode = matchedProduct.productCode;
+        stateData.productName = matchedProduct.name;
+        stateData.productPrice = matchedProduct.price;
+
+        const confirmOptions = QuickReplyBuilderService.buildCartConfirmOptions();
+        const promptText = `${qty} adet ${matchedProduct.name} (${size || 'Standart'} Beden) sepete eklemek istiyor musunuz?`;
+        return InstagramMessageService.sendButtonsOrQuickReplies(senderId, promptText, confirmOptions);
+      }
+
+      // ─────────────────────────────────────────────
+      // 4. CONFIRM_ADD_TO_CART Postback
+      // ─────────────────────────────────────────────
+      if (rawAction === 'CONFIRM_ADD_TO_CART') {
+        const stateData = ConversationStateService.getState(stateKey);
+        const productCode = stateData.productCode;
+        const qty = stateData.selectedQuantity || 1;
+        const size = stateData.selectedSize;
+
+        console.log(`[ConversationState] CONFIRM_ADD_TO_CART: productCode=${productCode}, qty=${qty}, size=${size}`);
+
+        if (!productCode) {
+          return InstagramMessageService.sendText(senderId, 'Sepete eklenecek ürün bulunamadı. Lütfen tekrar deneyin.');
+        }
+
+        const cartRes = await CartService.addItem(senderId, productCode, qty, size);
+        ConversationStateService.transition(stateKey, 'CONFIRM_ADD_TO_CART');
+
+        const checkoutOptions = QuickReplyBuilderService.buildCheckoutOptions();
+        const promptText = `${cartRes.message}\n\nSepetiniz güncellendi. Siparişinizi tamamlamak ister misiniz?`;
+        return InstagramMessageService.sendButtonsOrQuickReplies(senderId, promptText, checkoutOptions);
+      }
+
+      // ─────────────────────────────────────────────
+      // 5. CHECKOUT_CONFIRM Postback
+      // ─────────────────────────────────────────────
+      if (rawAction === 'CHECKOUT_CONFIRM') {
+        console.log(`[ConversationState] CHECKOUT_CONFIRM received`);
+        const cart = CartService.getCart(senderId);
+        if (cart.length === 0) {
+          return InstagramMessageService.sendText(senderId, 'Sepetiniz şu anda boş.');
+        }
+
+        const orderId = `ORD-${Date.now()}`;
+        for (const item of cart) {
+          await OrderService.createOrder({
+            customerName: ctx.customerName || 'Musteri',
+            customerPhone: ctx.customerPhone || '05000000000',
+            address: ctx.address || 'Instagram DM',
+            senderId,
+            productCode: item.productCode,
+            productName: item.productName,
+            size: item.size || 'Standart',
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            totalPrice: item.unitPrice * item.quantity
+          });
+          await StockService.deductStock(item.productCode, item.quantity, item.size);
+        }
+
+        CartService.clearCart(senderId);
+        ConversationStateService.transition(stateKey, 'CHECKOUT_CONFIRM');
+
+        return InstagramMessageService.sendText(
+          senderId,
+          `✅ Siparişiniz başarıyla onaylanmıştır! Sipariş Numaranız: ${orderId}. Teşekkür ederiz.`
+        );
+      }
+
+      // ─────────────────────────────────────────────
+      // 6. CANCEL_CHECKOUT Postback
+      // ─────────────────────────────────────────────
+      if (rawAction === 'CANCEL_CHECKOUT') {
+        console.log(`[ConversationState] CANCEL_CHECKOUT received`);
+        ConversationStateService.transition(stateKey, 'CANCEL');
+        const fallbackOptions = QuickReplyBuilderService.buildFallbackReplies();
+        return InstagramMessageService.sendButtonsOrQuickReplies(
+          senderId,
+          'İşlem iptal edildi. Size başka nasıl yardımcı olabilirim?',
+          fallbackOptions
+        );
+      }
+
+      // ─────────────────────────────────────────────
+      // 7. ADD_MORE_PRODUCTS Postback
+      // ─────────────────────────────────────────────
+      if (rawAction === 'ADD_MORE_PRODUCTS') {
+        console.log(`[ConversationState] ADD_MORE_PRODUCTS received`);
+        ConversationStateService.transition(stateKey, 'ADD_MORE');
+        const products = await StockService.getAllProducts();
+        if (!products || products.length === 0) {
+          return InstagramMessageService.sendText(senderId, 'Gösterilecek ürün bulunamadı.');
+        }
+        return InstagramMessageService.sendProductCarousel(senderId, products);
+      }
+
+      // 8. ACTION: ADD_TO_CART:<productCode>[:size] veya "Sepete Ekle"
       if (rawAction.startsWith('ADD_TO_CART:') || lowerText === 'sepete ekle' || lowerText === 'sepete ekle!') {
         let productCode = '';
         let size: string | undefined = undefined;
@@ -183,7 +353,6 @@ export class WebhookController {
           size = parts[1] ? parts[1].trim().toUpperCase() : undefined;
         }
 
-        // Eğer butonda kod yoksa oturumdaki son ürünü (ctx.productCode) dene
         if (!productCode && ctx.productCode) {
           productCode = ctx.productCode;
         }
@@ -204,7 +373,6 @@ export class WebhookController {
           );
         }
 
-        // Güvenlik & Doğrulama: Ürünü DB'den sorgula
         const stockCheck = await StockService.checkStock(productCode);
         console.log(`[InstagramMessage] Product validated: ${stockCheck.exists ? 'YES' : 'NO'}`);
 
@@ -230,7 +398,6 @@ export class WebhookController {
 
         console.log(`[InstagramMessage] Stock check passed (${prodStock} adet)`);
 
-        // Sepete Ekle
         const cartRes = await CartService.addItem(senderId, productCode, 1, size);
         console.log(`[InstagramMessage] Cart updated: ${cartRes.success}`);
 
@@ -245,7 +412,7 @@ export class WebhookController {
         );
       }
 
-      // 2. ACTION: PRODUCT_DETAIL:<productCode>
+      // 9. ACTION: PRODUCT_DETAIL:<productCode>
       if (rawAction.startsWith('PRODUCT_DETAIL:')) {
         const productCode = rawAction.replace('PRODUCT_DETAIL:', '').trim().toUpperCase();
         console.log(`[InstagramMessage] Button clicked: PRODUCT_DETAIL for ${productCode}`);
@@ -259,19 +426,37 @@ export class WebhookController {
         ctx.productCode = item.productCode || productCode;
         ctx.size = item.size;
 
+        ConversationStateService.setProductContext(stateKey, {
+          shortCode: item.shortCode || item.productCode.split('-')[0],
+          productCode: item.productCode,
+          productName: item.name,
+          productPrice: item.price,
+          productStock: item.stock,
+          availableSizes: item.availableSizes || [item.size]
+        });
+
         const detailText = `**ÜRÜN DETAYI:**\n\n• **Ürün Adı:** ${item.name || productCode}\n• **Ürün Kodu:** ${item.productCode}\n• **Satış Fiyatı:** ${item.price} TL\n• **Beden Options:** ${item.size || 'S, M, L, XL'}\n• **Stok Durumu:** ${prod.inStock ? `Stokta Var (${item.stock} adet)` : 'Tükendi'}`;
 
-        return InstagramMessageService.sendButtonMessage(
-          senderId,
-          detailText,
-          [
-            { title: 'Sepete Ekle', payload: `ADD_TO_CART:${item.productCode || productCode}` },
-            { title: 'Tüm Ürünler', payload: 'PRODUCT_LIST' }
-          ]
-        );
+        const sizes = await StockService.getAvailableSizes(item.shortCode || item.productCode.split('-')[0]);
+
+        if (sizes.length > 0) {
+          const sizeOptions = await QuickReplyBuilderService.buildSizeOptions(item.shortCode || item.productCode.split('-')[0]);
+          return InstagramMessageService.sendButtonsOrQuickReplies(
+            senderId,
+            `${detailText}\n\nLütfen istediğiniz bedeni seçin:`,
+            sizeOptions
+          );
+        } else {
+          const qtyOptions = await QuickReplyBuilderService.buildQuantityOptions(item.shortCode || item.productCode.split('-')[0]);
+          return InstagramMessageService.sendButtonsOrQuickReplies(
+            senderId,
+            `${detailText}\n\nKaç adet istersiniz?`,
+            qtyOptions
+          );
+        }
       }
 
-      // 3. ACTION: PRODUCT_LIST (Ürün Kataloğunu Carousel Olarak Gönder)
+      // 10. ACTION: PRODUCT_LIST (Ürün Kataloğunu Carousel Olarak Gönder)
       if (
         rawAction === 'PRODUCT_LIST' || 
         lowerText === 'ürünler' || 
@@ -293,7 +478,7 @@ export class WebhookController {
         return InstagramMessageService.sendProductCarousel(senderId, products);
       }
 
-      // 4. ACTION: MY_CART (Sepeti Göster)
+      // 11. ACTION: MY_CART (Sepeti Göster)
       if (rawAction === 'MY_CART' || lowerText === 'sepetim' || lowerText === 'sepeti göster') {
         console.log(`[InstagramMessage] Showing cart to ${senderId}`);
         const cart = CartService.getCart(senderId);
@@ -327,7 +512,7 @@ export class WebhookController {
         );
       }
 
-      // 5. ACTION: MY_ORDERS (Müşterinin Siparişlerini Göster)
+      // 12. ACTION: MY_ORDERS (Müşterinin Siparişlerini Göster)
       if (rawAction === 'MY_ORDERS' || lowerText === 'siparişlerim' || lowerText === 'siparislerim') {
         console.log(`[InstagramMessage] Showing orders to ${senderId}`);
         const allOrders = await OrderService.getOrders();
@@ -358,7 +543,7 @@ export class WebhookController {
         );
       }
 
-      // 6. ACTION: HUMAN_SUPPORT (Canlı Destek)
+      // 13. ACTION: HUMAN_SUPPORT (Canlı Destek)
       if (rawAction === 'HUMAN_SUPPORT' || lowerText.includes('canlı destek') || lowerText === 'destek') {
         return InstagramMessageService.sendText(
           senderId,
@@ -366,27 +551,30 @@ export class WebhookController {
         );
       }
 
-      // 7. DEFAULT: AI Chat Processing (F.R.I.D.A.Y.) + Dynamic Quick Replies
+      // 14. DEFAULT: AI Chat Processing (F.R.I.D.A.Y.) + Dynamic Quick Replies
       try {
         const aiResult = await AIService.processMessage(senderId, cleanText || text);
         const { reply, suggestedReplies } = aiResult;
 
-        // Session'daki güvenli ürün kodunu al (backend validate edilmiş)
-        const sessionCtx = (AIService as any).getSessionContext(senderId);
-        const validatedProductCode = sessionCtx?.productCode;
+        const stateData = ConversationStateService.getState(stateKey);
+        const shortCode = stateData.shortCode;
+        const selectedSize = stateData.selectedSize;
+        const selectedColor = stateData.selectedColor;
 
-        // Dynamic Quick Reply'ları oluştur
-        const qrItems = QuickReplyBuilderService.buildReplies(suggestedReplies || [], validatedProductCode);
+        const qrItems = await QuickReplyBuilderService.buildOptionsFromAi(
+          suggestedReplies || [],
+          shortCode,
+          selectedSize,
+          selectedColor
+        );
 
         if (qrItems.length > 0) {
-          // Quick Reply olarak gönder
           const instagramReplies = qrItems.map(qr => ({ title: qr.title, payload: qr.payload }));
-          await InstagramMessageService.sendQuickReplies(senderId, reply, instagramReplies);
+          await InstagramMessageService.sendButtonsOrQuickReplies(senderId, reply, instagramReplies);
         } else {
-          // Fallback: Düz metin + statik fallback butonlar
           const fallbackItems = QuickReplyBuilderService.buildFallbackReplies();
           const fallbackReplies = fallbackItems.map(qr => ({ title: qr.title, payload: qr.payload }));
-          await InstagramMessageService.sendQuickReplies(senderId, reply, fallbackReplies);
+          await InstagramMessageService.sendButtonsOrQuickReplies(senderId, reply, fallbackReplies);
         }
       } catch (error) {
         console.error(`[WebhookController] AI Mesaj işleme hatası (${senderId}):`, error);

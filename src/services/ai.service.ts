@@ -474,7 +474,7 @@ Stok sorgulama, sepete ekleme ve sipariş kayıt ajansın.
 
   public static async processMessage(senderId: string, userMessage: string): Promise<{
     reply: string;
-    suggestedReplies: string[];
+    suggestedReplies: any[];
     tokens: { promptTokens: number; completionTokens: number; totalTokens: number; costUsd: number };
   }> {
     const apiKey = this.getApiKey();
@@ -603,21 +603,38 @@ ${campaignsText}
 Yanıtını MUTLAKA aşağıdaki JSON formatında ver:
 {
   "answer": "Müşteriye verdiğin Türkçe yanıt buraya",
-  "suggested_replies": [
-    "Kısa öneri 1 (max 20 karakter)",
-    "Kısa öneri 2",
-    "Kısa öneri 3"
+  "quick_replies": [
+    {
+      "title": "S",
+      "type": "SIZE",
+      "value": "S"
+    },
+    {
+      "title": "M",
+      "type": "SIZE",
+      "value": "M"
+    }
   ]
 }
 
-suggested_replies kuralları:
-- Müşterinin BÜYÜK OLASILILIKLA göndereceği bir sonraki mesajı tahmin et (context'e göre)
-- Maksimum 3 öneri, her biri maksimum 20 karakter
-- Kısa, doğal, tekrarsız Türkçe ifadeler
-- Konuşma context'ini göz önünde bulundur
-- ASLA ürün kodu, fiyat, stok miktarı, store ID, order ID gibi kritik değerler üretme
-- Önerilerde sadece müşterinin söyleyeceği şeyi yaz
-- Eğer uygun öneri yoksa suggested_replies = [] döndür
+suggested_replies / quick_replies kuralları:
+- You are controlling the conversational suggestion UI.
+- When your response asks the customer to choose from known options, return those options as quick_replies.
+- Supported types:
+  - SIZE: value represents size option (e.g. S, M, L, XL)
+  - COLOR: value represents color option
+  - QUANTITY: value represents quantity (e.g. 1, 2, 3)
+  - CONFIRM: value represents confirmation (e.g. CHECKOUT_CONFIRM or CONFIRM_ADD_TO_CART)
+  - CANCEL: value is CANCEL_CHECKOUT
+  - ADD_PRODUCT: value is ADD_MORE_PRODUCTS
+  - VIEW_CART: value is MY_CART
+  - VIEW_ORDERS: value is MY_ORDERS
+  - CUSTOM_TEXT: generic conversational text suggestion (e.g. "Başka renk var mı?")
+- Never invent database values. Available sizes, colors, stock quantities, products and order information must come from backend context.
+- Never generate storeId, productId, orderId or database identifiers.
+- Do not output raw API payloads.
+- Keep quick_replies count up to 3-4 options. Keep titles short.
+- If there is no specific action or option needed, return an empty array or custom conversational follow-up questions with type: "CUSTOM_TEXT".
 </YANIT_FORMATI>
 `);
 
@@ -652,7 +669,7 @@ suggested_replies kuralları:
 
       // ─── Structured JSON output parse et ───
       let finalAnswer = rawOutput;
-      let suggestedReplies: string[] = [];
+      let suggestedReplies: any[] = [];
 
       try {
         const jsonMatch = rawOutput.match(/\{[\s\S]*\}/);
@@ -661,13 +678,17 @@ suggested_replies kuralları:
           if (parsed.answer && typeof parsed.answer === 'string') {
             finalAnswer = parsed.answer.trim();
           }
-          if (Array.isArray(parsed.suggested_replies)) {
-            suggestedReplies = parsed.suggested_replies
-              .filter((r: any) => typeof r === 'string' && r.trim().length > 0)
-              .map((r: string) => r.trim())
-              .slice(0, 4);
-            console.log(`[DynamicQuickReply] generated count=${suggestedReplies.length}`);
+          if (Array.isArray(parsed.quick_replies)) {
+            suggestedReplies = parsed.quick_replies;
+          } else if (Array.isArray(parsed.suggested_replies)) {
+            suggestedReplies = parsed.suggested_replies.map((r: any) => {
+              if (typeof r === 'string') {
+                return { title: r, type: 'CUSTOM_TEXT', value: r };
+              }
+              return r;
+            });
           }
+          console.log(`[DynamicQuickReply] generated count=${suggestedReplies.length}`);
         }
       } catch (parseErr) {
         console.warn('[AIService] Structured output parse başarısız, ham metin kullanılıyor:', parseErr);

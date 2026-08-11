@@ -1,122 +1,240 @@
-/**
- * QuickReplyBuilderService — Dynamic Instagram Quick Reply Mimarisi
- *
- * AI tarafından üretilen ham öneri metinlerini güvenli Quick Reply payload'larına dönüştürür.
- *
- * İki tip Quick Reply:
- * TYPE 1 — ACTION:  "Sepete ekle" → ADD_TO_CART:<validatedCode>  (CartService doğrudan çalışır)
- * TYPE 2 — TEXT:    "Başka renk var mı?" → SUGGESTED_TEXT:<encoded>  (AI buffer'a gider)
- */
+import { StockService } from './stock.service';
+import { ConversationStateService } from './conversation-state.service';
 
-export interface QuickReplyPayload {
+export interface InteractiveOption {
   title: string;
   payload: string;
-  type: 'ACTION' | 'TEXT';
+  type: string;
+  value?: string;
 }
-
-// ─────────────────────────────────────────────
-// Intent Map: AI'ın ürettiği Türkçe metin → backend action
-// ─────────────────────────────────────────────
-
-interface IntentRule {
-  patterns: string[];   // küçük harf eşleşme pattern'leri
-  action: string;       // backend ACTION sabiti (productCode gerektirenler için :PRODUCT placeholder)
-  requiresProduct?: boolean;
-}
-
-const INTENT_RULES: IntentRule[] = [
-  {
-    patterns: ['sepete ekle', 'sepete ekleyim', 'ekle', 'ekleyeyim', 'add to cart'],
-    action: 'ADD_TO_CART',
-    requiresProduct: true
-  },
-  {
-    patterns: ['sepetim', 'sepeti göster', 'sepete bak', 'sepet ne durumda', 'my cart'],
-    action: 'MY_CART'
-  },
-  {
-    patterns: ['siparişlerim', 'siparişimi sorgula', 'siparişim nerede', 'sipariş takip', 'my orders'],
-    action: 'MY_ORDERS'
-  },
-  {
-    patterns: ['ürünleri göster', 'katalog', 'ürünler', 'tüm ürünler', 'product list'],
-    action: 'PRODUCT_LIST'
-  },
-  {
-    patterns: ['destek', 'canlı destek', 'yardım', 'müşteri temsilcisi', 'support'],
-    action: 'HUMAN_SUPPORT'
-  }
-];
 
 export class QuickReplyBuilderService {
-
   /**
-   * AI'dan gelen ham öneri dizisini → güvenli Quick Reply payload listesine dönüştürür.
-   *
-   * @param suggestions   AI'ın ürettiği ham metin önerileri (max 4)
-   * @param currentProductCode   Mevcut oturumdaki doğrulanmış ürün kodu (backend'den)
+   * Geriye dönük uyumluluk için eski metot
    */
-  public static buildReplies(
-    suggestions: string[],
-    currentProductCode?: string
-  ): QuickReplyPayload[] {
-    if (!suggestions || suggestions.length === 0) return [];
+  public static buildReplies(suggestions: string[], currentProductCode?: string): any[] {
+    if (!suggestions) return [];
+    return suggestions.slice(0, 4).map(s => {
+      const clean = s.trim();
+      const lower = clean.toLowerCase();
+      const title = clean.length > 20 ? clean.slice(0, 19) + '…' : clean;
+      
+      if (lower.includes('sepet') && currentProductCode) {
+        return { title, payload: `ADD_TO_CART:${currentProductCode}`, type: 'ACTION' };
+      }
+      if (lower.includes('sepetim')) {
+        return { title, payload: 'MY_CART', type: 'ACTION' };
+      }
+      if (lower.includes('siparişlerim') || lower.includes('siparişim nerede')) {
+        return { title, payload: 'MY_ORDERS', type: 'ACTION' };
+      }
+      if (lower.includes('ürün') || lower.includes('katalog')) {
+        return { title, payload: 'PRODUCT_LIST', type: 'ACTION' };
+      }
+      if (lower.includes('destek')) {
+        return { title, payload: 'HUMAN_SUPPORT', type: 'ACTION' };
+      }
+      return {
+        title,
+        payload: `SUGGESTED_TEXT:${Buffer.from(clean, 'utf8').toString('base64')}`,
+        type: 'TEXT'
+      };
+    });
+  }
+  /**
+   * AI veya State Machine'den gelen UI isteklerini Meta-compliant buton ve quick reply listelerine dönüştürür.
+   *
+   * @param recipientId Alıcı ID'si
+   * @param aiReplies AI'dan dönen quick reply listesi (isteğe bağlı)
+   * @param shortCode Ürün kısa kodu
+   * @param selectedSize Seçilen beden
+   * @param selectedColor Seçilen renk
+   */
+  public static async buildOptionsFromAi(
+    aiReplies: Array<{ title?: string; type?: string; value?: string }>,
+    shortCode?: string,
+    selectedSize?: string,
+    selectedColor?: string
+  ): Promise<InteractiveOption[]> {
+    if (!aiReplies || aiReplies.length === 0) return [];
 
-    const replies: QuickReplyPayload[] = [];
+    const options: InteractiveOption[] = [];
 
-    for (const raw of suggestions.slice(0, 4)) {
-      const cleaned = (raw || '').trim();
-      if (!cleaned || cleaned.length < 2) continue;
-      // Instagram Quick Reply title max 20 karakter
-      const title = cleaned.length > 20 ? cleaned.slice(0, 19) + '…' : cleaned;
+    for (const reply of aiReplies.slice(0, 10)) {
+      const type = (reply.type || '').toUpperCase();
+      const value = reply.value || '';
+      const title = reply.title || value || '';
 
-      const matched = this.matchIntent(cleaned.toLowerCase());
-
-      if (matched) {
-        let actionPayload = matched.action;
-
-        // ADD_TO_CART: productCode backend'den alınır (AI'ın ürettiği kod kullanılmaz)
-        if (matched.requiresProduct) {
-          if (!currentProductCode) {
-            // Ürün kodu bilinmiyorsa TEXT suggestion olarak gönder
-            replies.push({
-              title,
-              payload: this.encodeTextPayload(cleaned),
-              type: 'TEXT'
-            });
-            console.log(`[DynamicQuickReply] suggested_text="${cleaned}" (no product context, fallback to TEXT)`);
-            continue;
-          }
-          actionPayload = `${matched.action}:${currentProductCode}`;
+      if (type === 'SIZE') {
+        if (!shortCode) continue;
+        const availableSizes = await StockService.getAvailableSizes(shortCode);
+        const upperVal = value.toUpperCase();
+        if (availableSizes.includes(upperVal)) {
+          options.push({
+            title: title || upperVal,
+            payload: `SELECT_SIZE:${shortCode}:${upperVal}`,
+            type: 'SIZE',
+            value: upperVal
+          });
         }
-
-        console.log(`[DynamicQuickReply] action=${actionPayload} title="${title}"`);
-        replies.push({ title, payload: actionPayload, type: 'ACTION' });
-      } else {
-        // Bilinen action yok → SUGGESTED_TEXT olarak gönder
-        const textPayload = this.encodeTextPayload(cleaned);
-        console.log(`[DynamicQuickReply] suggested_text="${cleaned}"`);
-        replies.push({ title, payload: textPayload, type: 'TEXT' });
+      } else if (type === 'COLOR') {
+        if (!shortCode) continue;
+        const availableColors = await StockService.getAvailableColors(shortCode);
+        const upperVal = value.toUpperCase();
+        if (availableColors.includes(upperVal)) {
+          options.push({
+            title: title || upperVal,
+            payload: `SELECT_COLOR:${shortCode}:${upperVal}`,
+            type: 'COLOR',
+            value: upperVal
+          });
+        }
+      } else if (type === 'QUANTITY') {
+        if (!shortCode) continue;
+        const qty = parseInt(value, 10);
+        if (isNaN(qty) || qty <= 0) continue;
+        const stock = await StockService.getStockForSizeColor(shortCode, selectedSize, selectedColor);
+        if (qty <= stock) {
+          options.push({
+            title: title || String(qty),
+            payload: `SELECT_QUANTITY:${shortCode}:${selectedSize || 'NONE'}:${qty}`,
+            type: 'QUANTITY',
+            value: String(qty)
+          });
+        }
+      } else if (type === 'CONFIRM') {
+        options.push({
+          title: title || '✅ Tamamla',
+          payload: value === 'CHECKOUT_CONFIRM' ? 'CHECKOUT_CONFIRM' : 'CONFIRM_ADD_TO_CART',
+          type: 'CONFIRM',
+          value
+        });
+      } else if (type === 'CANCEL') {
+        options.push({
+          title: title || '❌ Vazgeç',
+          payload: 'CANCEL_CHECKOUT',
+          type: 'CANCEL',
+          value
+        });
+      } else if (type === 'ADD_PRODUCT') {
+        options.push({
+          title: title || '➕ Ürün ekle',
+          payload: 'ADD_MORE_PRODUCTS',
+          type: 'ADD_PRODUCT',
+          value
+        });
+      } else if (type === 'VIEW_CART') {
+        options.push({
+          title: title || '🛒 Sepetim',
+          payload: 'MY_CART',
+          type: 'VIEW_CART',
+          value
+        });
+      } else if (type === 'VIEW_ORDERS') {
+        options.push({
+          title: title || 'Siparişlerim',
+          payload: 'MY_ORDERS',
+          type: 'VIEW_ORDERS',
+          value
+        });
+      } else if (type === 'PRODUCT') {
+        options.push({
+          title: title || 'Ürün Detayı',
+          payload: `PRODUCT_DETAIL:${value}`,
+          type: 'PRODUCT',
+          value
+        });
+      } else if (type === 'CUSTOM_TEXT' || !type) {
+        options.push({
+          title: title.length > 20 ? title.slice(0, 19) + '…' : title,
+          payload: `SUGGESTED_TEXT:${Buffer.from(title, 'utf8').toString('base64')}`,
+          type: 'CUSTOM_TEXT',
+          value: title
+        });
       }
     }
 
-    return replies;
+    return options;
   }
 
   /**
-   * Statik fallback Quick Reply'ler (AI başarısız olduğunda)
+   * Beden seçimi butonlarını (veya QR) DB varyantlarına göre oluşturur.
    */
-  public static buildFallbackReplies(): QuickReplyPayload[] {
-    console.log(`[DynamicQuickReply] fallback=true`);
+  public static async buildSizeOptions(shortCode: string): Promise<InteractiveOption[]> {
+    const sizes = await StockService.getAvailableSizes(shortCode);
+    return sizes.map(size => ({
+      title: size,
+      payload: `SELECT_SIZE:${shortCode}:${size}`,
+      type: 'SIZE',
+      value: size
+    }));
+  }
+
+  /**
+   * Renk seçimi butonlarını (veya QR) DB varyantlarına göre oluşturur.
+   */
+  public static async buildColorOptions(shortCode: string): Promise<InteractiveOption[]> {
+    const colors = await StockService.getAvailableColors(shortCode);
+    return colors.map(color => ({
+      title: color,
+      payload: `SELECT_COLOR:${shortCode}:${color}`,
+      type: 'COLOR',
+      value: color
+    }));
+  }
+
+  /**
+   * Adet seçimi butonlarını DB stok durumuna göre oluşturur.
+   */
+  public static async buildQuantityOptions(shortCode: string, size?: string, color?: string): Promise<InteractiveOption[]> {
+    const stock = await StockService.getStockForSizeColor(shortCode, size, color);
+    const maxQty = Math.min(stock, 5); // Max 5 adet seçeneği sunulur
+    const options: InteractiveOption[] = [];
+    for (let i = 1; i <= maxQty; i++) {
+      options.push({
+        title: String(i),
+        payload: `SELECT_QUANTITY:${shortCode}:${size || 'NONE'}:${i}`,
+        type: 'QUANTITY',
+        value: String(i)
+      });
+    }
+    return options;
+  }
+
+  /**
+   * Sepet ekleme onayı butonlarını oluşturur.
+   */
+  public static buildCartConfirmOptions(): InteractiveOption[] {
     return [
-      { title: 'Urunler', payload: 'PRODUCT_LIST', type: 'ACTION' },
-      { title: 'Sepetim', payload: 'MY_CART', type: 'ACTION' },
-      { title: 'Destek', payload: 'HUMAN_SUPPORT', type: 'ACTION' }
+      { title: '🛒 Sepete Ekle', payload: 'CONFIRM_ADD_TO_CART', type: 'CONFIRM' },
+      { title: '❌ Vazgeç', payload: 'CANCEL_CHECKOUT', type: 'CANCEL' }
     ];
   }
 
   /**
-   * SUGGESTED_TEXT payload'ı çözümler
+   * Checkout onayı butonlarını oluşturur.
+   */
+  public static buildCheckoutOptions(): InteractiveOption[] {
+    return [
+      { title: '✅ Tamamla', payload: 'CHECKOUT_CONFIRM', type: 'CONFIRM' },
+      { title: '➕ Ürün ekle', payload: 'ADD_MORE_PRODUCTS', type: 'ADD_PRODUCT' },
+      { title: '❌ Vazgeç', payload: 'CANCEL_CHECKOUT', type: 'CANCEL' }
+    ];
+  }
+
+  /**
+   * Statik fallback butonları oluşturur.
+   */
+  public static buildFallbackReplies(): InteractiveOption[] {
+    return [
+      { title: 'Ürün Kataloğu', payload: 'PRODUCT_LIST', type: 'PRODUCT_LIST' },
+      { title: 'Sepetim', payload: 'MY_CART', type: 'VIEW_CART' },
+      { title: 'Destek', payload: 'HUMAN_SUPPORT', type: 'HUMAN_SUPPORT' }
+    ];
+  }
+
+  /**
+   * SUGGESTED_TEXT payload'ını çözümler.
    */
   public static decodeSuggestedText(payload: string): string | null {
     if (!payload.startsWith('SUGGESTED_TEXT:')) return null;
@@ -128,28 +246,9 @@ export class QuickReplyBuilderService {
   }
 
   /**
-   * SUGGESTED_TEXT payload'ı mı kontrol eder
+   * SUGGESTED_TEXT payload'ı mı kontrol eder.
    */
   public static isSuggestedText(payload: string): boolean {
     return payload.startsWith('SUGGESTED_TEXT:');
-  }
-
-  // ─────────────────────────────────────────────
-  // Private Helpers
-  // ─────────────────────────────────────────────
-
-  private static matchIntent(lowerText: string): IntentRule | null {
-    for (const rule of INTENT_RULES) {
-      for (const pattern of rule.patterns) {
-        if (lowerText.includes(pattern)) {
-          return rule;
-        }
-      }
-    }
-    return null;
-  }
-
-  private static encodeTextPayload(text: string): string {
-    return `SUGGESTED_TEXT:${Buffer.from(text, 'utf8').toString('base64')}`;
   }
 }

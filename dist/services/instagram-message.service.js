@@ -192,9 +192,6 @@ class InstagramMessageService {
             return errRes;
         }
     }
-    /**
-     * 3. Buton Mesajı Gönderir (Button Template)
-     */
     static async sendButtonMessage(recipientId, text, buttons) {
         if (this.isMock(recipientId)) {
             console.log(`[InstagramMessage Mock ButtonMessage -> ${recipientId}]: ${text}\nButtons:`, buttons.map(b => b.title));
@@ -215,6 +212,22 @@ class InstagramMessageService {
             const quickReplies = buttons.map(b => ({ title: b.title, payload: b.payload }));
             await this.sendQuickReplies(recipientId, text, quickReplies);
             return errRes;
+        }
+    }
+    /**
+     * 3b. Meta Limitlerine Göre Otomatik Buton veya Quick Reply Gönderir
+     * Sayı <= 3 ise Button Template, > 3 ise Quick Reply (Maks 13 adet) kullanılır.
+     */
+    static async sendButtonsOrQuickReplies(recipientId, text, options) {
+        if (options.length <= 3 && options.length > 0) {
+            return this.sendButtonMessage(recipientId, text, options);
+        }
+        else {
+            const quickReplies = options.map(opt => ({
+                title: opt.title,
+                payload: opt.payload
+            }));
+            return this.sendQuickReplies(recipientId, text, quickReplies);
         }
     }
     /**

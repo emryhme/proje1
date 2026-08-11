@@ -48,9 +48,11 @@ function recoverLegacyData() {
           INSERT OR IGNORE INTO products (short_code, product_code, name, color, size, price, cost_price, stock, category, created_at)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
-        oldProducts.forEach(p => {
-          insertProd.run(p.short_code || 'STK', p.product_code, p.name, p.color || '', p.size || 'M', p.price || 299, p.cost_price || 150, p.stock || 0, p.category || '', p.created_at || new Date().toISOString());
-        });
+        db.transaction(() => {
+          oldProducts.forEach(p => {
+            insertProd.run(p.short_code || 'STK', p.product_code, p.name, p.color || '', p.size || 'M', p.price || 299, p.cost_price || 150, p.stock || 0, p.category || '', p.created_at || new Date().toISOString());
+          });
+        })();
       } catch (e) {}
 
       // 2. Siparişleri Kurtar
@@ -60,12 +62,20 @@ function recoverLegacyData() {
           INSERT OR IGNORE INTO orders (order_id, first_name, last_name, customer_phone, address, product_code, product_name, size, quantity, unit_price, shipping_fee, discount, total_price, unit_cost_price, total_cost, profit, status, sender_id, created_at)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
-        oldOrders.forEach(o => {
-          insertOrd.run(o.order_id, o.first_name || '', o.last_name || '', o.customer_phone || '', o.address || '', o.product_code || '', o.product_name || '', o.size || 'M', o.quantity || 1, o.unit_price || 0, o.shipping_fee || 0, o.discount || 0, o.total_price || 0, o.unit_cost_price || 0, o.total_cost || 0, o.profit || 0, o.status || 'OK', o.sender_id || '', o.created_at || new Date().toISOString());
-        });
+        db.transaction(() => {
+          oldOrders.forEach(o => {
+            insertOrd.run(o.order_id, o.first_name || '', o.last_name || '', o.customer_phone || '', o.address || '', o.product_code || '', o.product_name || '', o.size || 'M', o.quantity || 1, o.unit_price || 0, o.shipping_fee || 0, o.discount || 0, o.total_price || 0, o.unit_cost_price || 0, o.total_cost || 0, o.profit || 0, o.status || 'OK', o.sender_id || '', o.created_at || new Date().toISOString());
+          });
+        })();
       } catch (e) {}
 
       oldDb.close();
+      try {
+        fs.renameSync(bPath, `${bPath}.recovered`);
+        console.log(`[Database Recovery] ✅ Eski veritabanı başarıyla kurtarıldı ve ${bPath}.recovered olarak yeniden adlandırıldı.`);
+      } catch (renameErr: any) {
+        console.warn(`[Database Recovery] Yedek dosya yeniden adlandırılamadı:`, renameErr.message);
+      }
     }
   } catch (err: any) {
     console.warn('[Database Recovery Warning]:', err.message);

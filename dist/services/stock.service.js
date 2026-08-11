@@ -248,14 +248,101 @@ class StockService {
       `);
             const target = productCode.trim().toUpperCase();
             const res = stmt.run(Number(newStock), target, target);
-            console.log(`[StockService SQLite] 📦 Ürün (${target}) Stoğu Güncellendi: ${newStock}`);
+            console.log(`[StockService SQLite] Ürün (${target}) Stoğu Güncellendi: ${newStock}`);
             // Google Sheets Senkronizasyonu
             google_sheets_service_1.GoogleSheetsService.updateProductStock(target, Number(newStock)).catch(() => { });
             return res.changes > 0;
         }
         catch (e) {
-            console.error('[StockService SQLite] ❌ Ürün stoğu güncellenemedi:', e.message);
+            console.error('[StockService SQLite] Stok güncellenemedi:', e.message);
             return false;
+        }
+    }
+    // ─────────────────────────────────────────────
+    // Quick Reply Helper Methods (DB-validated)
+    // ─────────────────────────────────────────────
+    /**
+     * Bir short code'a ait stokta mevcut bedenleri DB'den döndürür.
+     * Stoku tükenmiş bedenler hariç tutulur.
+     */
+    static async getAvailableSizes(shortCode) {
+        try {
+            const target = shortCode.trim().toUpperCase();
+            const rows = db_1.db.prepare(`
+        SELECT DISTINCT size FROM products
+        WHERE UPPER(short_code) = ? AND stock > 0
+        ORDER BY
+          CASE size
+            WHEN 'XS' THEN 1 WHEN 'S' THEN 2 WHEN 'M' THEN 3
+            WHEN 'L' THEN 4 WHEN 'XL' THEN 5 WHEN 'XXL' THEN 6
+            ELSE 7
+          END ASC
+      `).all(target);
+            const sizes = rows.map(r => r.size).filter(s => s && s.trim().length > 0);
+            console.log(`[StockService] getAvailableSizes(${shortCode}): ${sizes.join(',')}`);
+            return sizes;
+        }
+        catch (e) {
+            console.error('[StockService] getAvailableSizes error:', e.message);
+            return [];
+        }
+    }
+    /**
+     * Bir short code'a ait stokta mevcut renkleri DB'den döndürür.
+     * Stoku tükenmiş renkler hariç tutulur.
+     */
+    static async getAvailableColors(shortCode) {
+        try {
+            const target = shortCode.trim().toUpperCase();
+            const rows = db_1.db.prepare(`
+        SELECT DISTINCT color FROM products
+        WHERE UPPER(short_code) = ? AND stock > 0 AND color IS NOT NULL AND color != ''
+        ORDER BY color ASC
+      `).all(target);
+            const colors = rows.map(r => r.color).filter(c => c && c.trim().length > 0);
+            console.log(`[StockService] getAvailableColors(${shortCode}): ${colors.join(',')}`);
+            return colors;
+        }
+        catch (e) {
+            console.error('[StockService] getAvailableColors error:', e.message);
+            return [];
+        }
+    }
+    /**
+     * Belirli bir shortCode + size + color kombinasyonu için stok döndürür.
+     * Quick Reply quantity builder için kullanılır.
+     */
+    static async getStockForSizeColor(shortCode, size, color) {
+        try {
+            const target = shortCode.trim().toUpperCase();
+            const targetSize = size ? size.trim().toUpperCase() : null;
+            const targetColor = color ? color.trim().toUpperCase() : null;
+            let query;
+            let params;
+            if (targetSize && targetColor) {
+                query = `SELECT SUM(stock) as total FROM products WHERE UPPER(short_code) = ? AND UPPER(size) = ? AND UPPER(color) = ?`;
+                params = [target, targetSize, targetColor];
+            }
+            else if (targetSize) {
+                query = `SELECT SUM(stock) as total FROM products WHERE UPPER(short_code) = ? AND UPPER(size) = ?`;
+                params = [target, targetSize];
+            }
+            else if (targetColor) {
+                query = `SELECT SUM(stock) as total FROM products WHERE UPPER(short_code) = ? AND UPPER(color) = ?`;
+                params = [target, targetColor];
+            }
+            else {
+                query = `SELECT SUM(stock) as total FROM products WHERE UPPER(short_code) = ?`;
+                params = [target];
+            }
+            const row = db_1.db.prepare(query).get(...params);
+            const stock = row?.total || 0;
+            console.log(`[StockService] getStockForSizeColor(${shortCode},${size},${color}): ${stock}`);
+            return stock;
+        }
+        catch (e) {
+            console.error('[StockService] getStockForSizeColor error:', e.message);
+            return 0;
         }
     }
 }
