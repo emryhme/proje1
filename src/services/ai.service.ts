@@ -474,6 +474,7 @@ Stok sorgulama, sepete ekleme ve sipariş kayıt ajansın.
 
   public static async processMessage(senderId: string, userMessage: string): Promise<{
     reply: string;
+    suggestedReplies: string[];
     tokens: { promptTokens: number; completionTokens: number; totalTokens: number; costUsd: number };
   }> {
     const apiKey = this.getApiKey();
@@ -481,6 +482,7 @@ Stok sorgulama, sepete ekleme ve sipariş kayıt ajansın.
     if (!apiKey || apiKey === 'DUMMY_KEY') {
       return {
         reply: "Merhaba! Mağaza müşteri temsilcisiyim. Lütfen geçerli bir OPENAI_API_KEY tanımlayınız.",
+        suggestedReplies: [],
         tokens: { promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0 }
       };
     }
@@ -591,11 +593,32 @@ ${rewardText}
    Mağazamızın Aktif Kampanyaları:
 ${campaignsText}
 
-6. 🚚 **KARGO ÜCRETİ VE FİYATLANDIRMA:**
+   6. 🚚 **KARGO ÜCRETİ VE FİYATLANDIRMA:**
    - Standart Kargo Ücreti: ${shippingFee} TL.
    - ${freeThreshold} TL ve üzeri siparişlerde KARGO ÜCRETSİZDİR!
    - Sepet siparişi sorulduğunda veya teslimat bilgileri istenirken sepet ara toplamını, kargo ücretini ve varsa kampanya/VIP indirimini hesaplayarak NET TOPLAM TUTARI açıkça söyle.
 </KATI_GÜVENLİK_VE_SEPET_KURALLARI>
+
+<YANIT_FORMATI>
+Yanıtını MUTLAKA aşağıdaki JSON formatında ver:
+{
+  "answer": "Müşteriye verdiğin Türkçe yanıt buraya",
+  "suggested_replies": [
+    "Kısa öneri 1 (max 20 karakter)",
+    "Kısa öneri 2",
+    "Kısa öneri 3"
+  ]
+}
+
+suggested_replies kuralları:
+- Müşterinin BÜYÜK OLASILILIKLA göndereceği bir sonraki mesajı tahmin et (context'e göre)
+- Maksimum 3 öneri, her biri maksimum 20 karakter
+- Kısa, doğal, tekrarsız Türkçe ifadeler
+- Konuşma context'ini göz önünde bulundur
+- ASLA ürün kodu, fiyat, stok miktarı, store ID, order ID gibi kritik değerler üretme
+- Önerilerde sadece müşterinin söyleyeceği şeyi yaz
+- Eğer uygun öneri yoksa suggested_replies = [] döndür
+</YANIT_FORMATI>
 `);
 
       ctx.history.push(new HumanMessage(userMessage));
@@ -625,21 +648,49 @@ ${campaignsText}
         messages.push(response);
       }
 
-      const finalOutput = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
-      ctx.history.push(new AIMessage(finalOutput));
+      const rawOutput = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
+
+      // ─── Structured JSON output parse et ───
+      let finalAnswer = rawOutput;
+      let suggestedReplies: string[] = [];
+
+      try {
+        const jsonMatch = rawOutput.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (parsed.answer && typeof parsed.answer === 'string') {
+            finalAnswer = parsed.answer.trim();
+          }
+          if (Array.isArray(parsed.suggested_replies)) {
+            suggestedReplies = parsed.suggested_replies
+              .filter((r: any) => typeof r === 'string' && r.trim().length > 0)
+              .map((r: string) => r.trim())
+              .slice(0, 4);
+            console.log(`[DynamicQuickReply] generated count=${suggestedReplies.length}`);
+          }
+        }
+      } catch (parseErr) {
+        console.warn('[AIService] Structured output parse başarısız, ham metin kullanılıyor:', parseErr);
+        finalAnswer = rawOutput;
+        suggestedReplies = [];
+      }
+
+      ctx.history.push(new AIMessage(finalAnswer));
 
       const totalTokens = promptTokens + completionTokens;
       const costUsd = (promptTokens * 0.0000025) + (completionTokens * 0.00001);
 
       return {
-        reply: finalOutput,
+        reply: finalAnswer,
+        suggestedReplies,
         tokens: { promptTokens, completionTokens, totalTokens, costUsd }
       };
 
     } catch (error: any) {
-      console.error('[AIService] ❌ İşlem Hatası:', error);
+      console.error('[AIService] İşlem Hatası:', error);
       return {
         reply: "Üzgünüm, şu an bağlantıda geçici bir yoğunluk var. Lütfen biraz sonra tekrar deneyiniz.",
+        suggestedReplies: [],
         tokens: { promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0 }
       };
     }

@@ -4,12 +4,12 @@ exports.WebhookController = void 0;
 const env_1 = require("../config/env");
 const regex_util_1 = require("../utils/regex.util");
 const ai_service_1 = require("../services/ai.service");
-const facebook_service_1 = require("../services/facebook.service");
 const instagram_message_service_1 = require("../services/instagram-message.service");
 const cart_service_1 = require("../services/cart.service");
 const stock_service_1 = require("../services/stock.service");
 const order_service_1 = require("../services/order.service");
 const message_buffer_service_1 = require("../services/message-buffer.service");
+const quick_reply_builder_service_1 = require("../services/quick-reply-builder.service");
 function stripEmojis(str) {
     if (!str)
         return '';
@@ -77,8 +77,21 @@ class WebhookController {
                 if (!senderId)
                     continue;
                 // ─────────────────────────────────────────
-                // POSTBACK / QUICK REPLY → Buffer bypass
-                // Interactive butonlar (ADD_TO_CART, PRODUCT_DETAIL vs.) anında işlenir.
+                // SUGGESTED_TEXT payload → Mesaj olarak buffer'a yönlendir
+                // Dynamic Quick Reply butonuna basıldığında buraya düşer
+                // ─────────────────────────────────────────
+                if (payload && quick_reply_builder_service_1.QuickReplyBuilderService.isSuggestedText(payload)) {
+                    const decodedText = quick_reply_builder_service_1.QuickReplyBuilderService.decodeSuggestedText(payload);
+                    if (decodedText) {
+                        console.log(`[WebhookController Messaging] SUGGESTED_TEXT decoded: "${decodedText}" (senderId: ${senderId})`);
+                        message_buffer_service_1.MessageBufferService.addMessage('default', 'instagram', senderId, decodedText, async (_convKey, _storeId, _channel, userId, combinedText) => {
+                            await WebhookController.processEventOrReply(userId, combinedText, '');
+                        });
+                    }
+                    continue;
+                }
+                // ─────────────────────────────────────────
+                // POSTBACK / ACTION → Buffer bypass (ADD_TO_CART, MY_CART vs.)
                 // ─────────────────────────────────────────
                 if (payload && payload.trim()) {
                     console.log(`[WebhookController Messaging] POSTBACK (senderId: ${senderId}): payload="${payload}"`);
@@ -252,16 +265,29 @@ class WebhookController {
             if (rawAction === 'HUMAN_SUPPORT' || lowerText.includes('canlı destek') || lowerText === 'destek') {
                 return instagram_message_service_1.InstagramMessageService.sendText(senderId, '**Müşteri Temsilcimiz:** Temsilcimiz en kısa sürede sizinle ilgilenecektir. Lütfen sormak istediğiniz konuyu doğrudan yazabilirsiniz.');
             }
-            // 7. DEFAULT: AI Chat Processing (F.R.I.D.A.Y.)
+            // 7. DEFAULT: AI Chat Processing (F.R.I.D.A.Y.) + Dynamic Quick Replies
             try {
-                const { reply } = await ai_service_1.AIService.processMessage(senderId, cleanText || text);
-                const sent = await facebook_service_1.FacebookService.sendMessage(senderId, reply);
-                if (!sent) {
-                    console.warn(`[WebhookController] ⚠️ FacebookService mesajı gönderemedi (senderId: ${senderId}). Lütfen FB_PAGE_ACCESS_TOKEN kontrol edin.`);
+                const aiResult = await ai_service_1.AIService.processMessage(senderId, cleanText || text);
+                const { reply, suggestedReplies } = aiResult;
+                // Session'daki güvenli ürün kodunu al (backend validate edilmiş)
+                const sessionCtx = ai_service_1.AIService.getSessionContext(senderId);
+                const validatedProductCode = sessionCtx?.productCode;
+                // Dynamic Quick Reply'ları oluştur
+                const qrItems = quick_reply_builder_service_1.QuickReplyBuilderService.buildReplies(suggestedReplies || [], validatedProductCode);
+                if (qrItems.length > 0) {
+                    // Quick Reply olarak gönder
+                    const instagramReplies = qrItems.map(qr => ({ title: qr.title, payload: qr.payload }));
+                    await instagram_message_service_1.InstagramMessageService.sendQuickReplies(senderId, reply, instagramReplies);
+                }
+                else {
+                    // Fallback: Düz metin + statik fallback butonlar
+                    const fallbackItems = quick_reply_builder_service_1.QuickReplyBuilderService.buildFallbackReplies();
+                    const fallbackReplies = fallbackItems.map(qr => ({ title: qr.title, payload: qr.payload }));
+                    await instagram_message_service_1.InstagramMessageService.sendQuickReplies(senderId, reply, fallbackReplies);
                 }
             }
             catch (error) {
-                console.error(`[WebhookController] ❌ AI Mesaj işleme hatası (${senderId}):`, error);
+                console.error(`[WebhookController] AI Mesaj işleme hatası (${senderId}):`, error);
                 await instagram_message_service_1.InstagramMessageService.sendMainMenu(senderId, 'Size nasıl yardımcı olabilirim? Aşağıdaki menüden seçim yapabilirsiniz.');
             }
         }
