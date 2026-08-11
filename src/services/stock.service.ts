@@ -314,19 +314,23 @@ export class StockService {
    * Bir short code'a ait stokta mevcut bedenleri DB'den döndürür.
    * Stoku tükenmiş bedenler hariç tutulur.
    */
+  /**
+   * Bir short code'a ait stokta mevcut bedenleri DB'den döndürür.
+   * Stoku tükenmiş bedenler hariç tutulur.
+   */
   public static async getAvailableSizes(shortCode: string): Promise<string[]> {
     try {
       const target = shortCode.trim().toUpperCase();
       const rows = db.prepare(`
         SELECT DISTINCT size FROM products
-        WHERE UPPER(short_code) = ? AND stock > 0
+        WHERE (UPPER(short_code) = ? OR UPPER(product_code) = ? OR UPPER(product_code) LIKE ? || '-%' OR UPPER(short_code) LIKE ? || '-%') AND stock > 0
         ORDER BY
           CASE size
             WHEN 'XS' THEN 1 WHEN 'S' THEN 2 WHEN 'M' THEN 3
             WHEN 'L' THEN 4 WHEN 'XL' THEN 5 WHEN 'XXL' THEN 6
             ELSE 7
           END ASC
-      `).all(target) as Array<{ size: string }>;
+      `).all(target, target, target, target) as Array<{ size: string }>;
       const sizes = rows.map(r => r.size).filter(s => s && s.trim().length > 0);
       console.log(`[StockService] getAvailableSizes(${shortCode}): ${sizes.join(',')}`);
       return sizes;
@@ -345,9 +349,9 @@ export class StockService {
       const target = shortCode.trim().toUpperCase();
       const rows = db.prepare(`
         SELECT DISTINCT color FROM products
-        WHERE UPPER(short_code) = ? AND stock > 0 AND color IS NOT NULL AND color != ''
+        WHERE (UPPER(short_code) = ? OR UPPER(product_code) = ? OR UPPER(product_code) LIKE ? || '-%' OR UPPER(short_code) LIKE ? || '-%') AND stock > 0 AND color IS NOT NULL AND color != ''
         ORDER BY color ASC
-      `).all(target) as Array<{ color: string }>;
+      `).all(target, target, target, target) as Array<{ color: string }>;
       const colors = rows.map(r => r.color).filter(c => c && c.trim().length > 0);
       console.log(`[StockService] getAvailableColors(${shortCode}): ${colors.join(',')}`);
       return colors;
@@ -370,18 +374,20 @@ export class StockService {
       let query: string;
       let params: any[];
 
+      const matchClause = `(UPPER(short_code) = ? OR UPPER(product_code) = ? OR UPPER(product_code) LIKE ? || '-%' OR UPPER(short_code) LIKE ? || '-%')`;
+
       if (targetSize && targetColor) {
-        query = `SELECT SUM(stock) as total FROM products WHERE UPPER(short_code) = ? AND UPPER(size) = ? AND UPPER(color) = ?`;
-        params = [target, targetSize, targetColor];
+        query = `SELECT SUM(stock) as total FROM products WHERE ${matchClause} AND UPPER(size) = ? AND UPPER(color) = ?`;
+        params = [target, target, target, target, targetSize, targetColor];
       } else if (targetSize) {
-        query = `SELECT SUM(stock) as total FROM products WHERE UPPER(short_code) = ? AND UPPER(size) = ?`;
-        params = [target, targetSize];
+        query = `SELECT SUM(stock) as total FROM products WHERE ${matchClause} AND UPPER(size) = ?`;
+        params = [target, target, target, target, targetSize];
       } else if (targetColor) {
-        query = `SELECT SUM(stock) as total FROM products WHERE UPPER(short_code) = ? AND UPPER(color) = ?`;
-        params = [target, targetColor];
+        query = `SELECT SUM(stock) as total FROM products WHERE ${matchClause} AND UPPER(color) = ?`;
+        params = [target, target, target, target, targetColor];
       } else {
-        query = `SELECT SUM(stock) as total FROM products WHERE UPPER(short_code) = ?`;
-        params = [target];
+        query = `SELECT SUM(stock) as total FROM products WHERE ${matchClause}`;
+        params = [target, target, target, target];
       }
 
       const row = db.prepare(query).get(...params) as { total: number | null };
