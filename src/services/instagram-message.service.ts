@@ -49,7 +49,7 @@ export class MetaInstagramPayloadBuilder {
   }
 
   /**
-   * Quick Replies Payload Builder
+   * Quick Replies Payload Builder (Meta Instagram DM Compliant: title max 20 chars)
    */
   public static buildQuickRepliesPayload(recipientId: string, text: string, replies: QuickReplyItem[]) {
     return {
@@ -57,11 +57,15 @@ export class MetaInstagramPayloadBuilder {
       messaging_type: 'RESPONSE',
       message: {
         text: text ? text.trim() : '',
-        quick_replies: replies.slice(0, 13).map(r => ({
-          content_type: 'text',
-          title: r.title,
-          payload: r.payload
-        }))
+        quick_replies: replies.slice(0, 13).map(r => {
+          const cleanTitle = (r.title || '').trim();
+          const safeTitle = cleanTitle.length > 20 ? cleanTitle.slice(0, 20) : cleanTitle;
+          return {
+            content_type: 'text',
+            title: safeTitle || 'Seçenek',
+            payload: r.payload
+          };
+        })
       }
     };
   }
@@ -79,11 +83,15 @@ export class MetaInstagramPayloadBuilder {
           payload: {
             template_type: 'button',
             text: text ? text.trim() : '',
-            buttons: buttons.slice(0, 3).map(b => ({
-              type: 'postback',
-              title: b.title,
-              payload: b.payload
-            }))
+            buttons: buttons.slice(0, 3).map(b => {
+              const cleanTitle = (b.title || '').trim();
+              const safeTitle = cleanTitle.length > 20 ? cleanTitle.slice(0, 20) : cleanTitle;
+              return {
+                type: 'postback',
+                title: safeTitle || 'Buton',
+                payload: b.payload
+              };
+            })
           }
         }
       }
@@ -148,7 +156,6 @@ export class InstagramMessageService {
 
   private static getHeaders() {
     return {
-      Authorization: `Bearer ${env.fbPageAccessToken || ''}`,
       'Content-Type': 'application/json'
     };
   }

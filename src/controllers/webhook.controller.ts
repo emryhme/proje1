@@ -95,26 +95,36 @@ export class WebhookController {
         }
 
         // ─────────────────────────────────────────
-        // SUGGESTED_TEXT ise metni deşifre et
+        // 1. SUGGESTED_TEXT Quick Reply → Metni deşifre et ve anında (0ms) çalıştır
         // ─────────────────────────────────────────
         if (payload && QuickReplyBuilderService.isSuggestedText(payload)) {
           const decodedText = QuickReplyBuilderService.decodeSuggestedText(payload);
           if (decodedText) {
-            incomingText = decodedText;
+            console.log(`[WebhookController Messaging] SUGGESTED_TEXT INSTANT (senderId: ${senderId}): "${decodedText}"`);
+            WebhookController.processEventOrReply(senderId, decodedText, '');
           }
+          continue;
         }
 
         // ─────────────────────────────────────────
-        // BUTON VE METİN MESAJLARINI NORMAL MESAJ OLARAK AL
+        // 2. INTERACTIVE POSTBACK / BUTTON CLICK → Buffer bypass (0ms anında çalıştır)
         // ─────────────────────────────────────────
-        const textToProcess = (incomingText || payload).trim();
-        if (textToProcess) {
-          console.log(`[WebhookController Messaging] NORMAL MESAJ (Button/Text) (senderId: ${senderId}): "${textToProcess}"`);
+        if (payload && payload.trim()) {
+          console.log(`[WebhookController Messaging] POSTBACK INSTANT (senderId: ${senderId}): payload="${payload.trim()}"`);
+          WebhookController.processEventOrReply(senderId, incomingText.trim(), payload.trim());
+          continue;
+        }
+
+        // ─────────────────────────────────────────
+        // 3. PLAIN TEXT → MessageBuffer debounce katmanı (1500ms)
+        // ─────────────────────────────────────────
+        if (incomingText.trim()) {
+          console.log(`[WebhookController Messaging] PLAIN TEXT BUFFER (senderId: ${senderId}): text="${incomingText.trim()}"`);
           MessageBufferService.addMessage(
             'default',      // storeId
             'instagram',
             senderId,
-            textToProcess,
+            incomingText.trim(),
             async (_convKey, _storeId, _channel, userId, combinedText) => {
               await WebhookController.processEventOrReply(userId, combinedText, '');
             }
