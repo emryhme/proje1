@@ -27,7 +27,8 @@ class OrderService {
         const now = new Date();
         const minute = now.getMinutes().toString().padStart(2, '0');
         const second = now.getSeconds().toString().padStart(2, '0');
-        const timeStamp = `${minute}${second}`;
+        const millis = now.getMilliseconds().toString().padStart(3, '0');
+        const timeStamp = `${minute}${second}${millis}`;
         const rawCode = (productCode || '').trim();
         // Çoklu ürün kontrolü (virgül, boşluk veya çok uzun karakter var mı)
         let baseCode = 'ORD';

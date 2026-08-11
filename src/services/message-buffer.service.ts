@@ -128,9 +128,7 @@ export class MessageBufferService {
     if (!state || state.processing) {
       if (state?.processing) {
         // Mevcut buffer işleniyorken gelen mesaj → yeni buffer aç
-        const newKey = key; // Aynı key'e yeni state yaz (işleme bitince overwrite)
         console.log(`[MessageBuffer] NEW_BUFFER (processing active) key=${key} text="${normalizedText}"`);
-        // processing true iken gelen mesajı gecikmeli yeniden ekle
         setTimeout(() => {
           MessageBufferService.addMessage(storeId, channel, externalUserId, normalizedText, onFlush);
         }, BUFFER_MS + 50);
@@ -149,6 +147,13 @@ export class MessageBufferService {
       bufferMap.set(key, state);
     }
 
+    // Duplicate message detection (aynı metin 500ms içinde iki kez geldiyse ekleme)
+    const lastMsg = state.messages[state.messages.length - 1];
+    if (lastMsg && lastMsg.text === normalizedText && now - lastMsg.timestamp < 500) {
+      console.log(`[MessageBuffer] IGNORED duplicate message (user=${externalUserId}) text="${normalizedText}"`);
+      return;
+    }
+
     state.lastActivityAt = now;
 
     // Mesajı buffer'a ekle
@@ -161,7 +166,7 @@ export class MessageBufferService {
       console.log(`[MessageBuffer] TIMER_RESET key=${key}`);
     }
 
-    // Yeni timer başlat
+    // Yeni timer başlat ( exact 1500ms )
     state.timer = setTimeout(() => {
       MessageBufferService.flush(key, onFlush);
     }, BUFFER_MS);
@@ -190,7 +195,8 @@ export class MessageBufferService {
     const orderedMessages = [...state.messages].sort((a, b) => a.timestamp - b.timestamp);
     const combinedText = orderedMessages.map(m => m.text).join('\n');
 
-    console.log(`[MessageBuffer] FLUSH key=${key} messages=${state.messages.length}`);
+    console.log(`[MessageBuffer] FLUSH key=${key} messages=${orderedMessages.length}`);
+    console.log(`[AI] sender=${state.externalUserId} bufferedMessages=${orderedMessages.length} invocation=1`);
     console.log(`[MessageBuffer] AI_TRIGGER key=${key} combinedText="${combinedText}"`);
 
     // Buffer'ı temizle (flush başlamadan önce)
@@ -201,12 +207,11 @@ export class MessageBufferService {
       console.log(`[MessageBuffer] AI_COMPLETE key=${key}`);
     } catch (err: any) {
       console.error(`[MessageBuffer] AI_ERROR key=${key} error="${err?.message || err}"`);
-      // Hata durumunda state silinmez, ama processing serbest bırakılır
     } finally {
       state.processing = false;
       state.lastActivityAt = Date.now();
 
-      // Flush sırasında yeni mesaj gelmediyse state'i temizle
+      // Flush sonrası state temizleme
       if (state.messages.length === 0) {
         bufferMap.delete(key);
       }

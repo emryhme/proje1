@@ -19,6 +19,10 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ConversationStateService = void 0;
 // ─────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────
+const webhook_controller_1 = require("../controllers/webhook.controller");
+// ─────────────────────────────────────────────
 // In-Memory Store (Redis-ready)
 // ─────────────────────────────────────────────
 const stateMap = new Map();
@@ -164,6 +168,15 @@ class ConversationStateService {
     /** Test için: belirli key'in state'ini sil */
     static clear(key) {
         stateMap.delete(key);
+        const parts = key.split(':');
+        const senderId = parts[2] || parts[0];
+        if (senderId) {
+            for (const k of webhook_controller_1.recentPostbacksMap.keys()) {
+                if (k.startsWith(`${senderId}:`)) {
+                    webhook_controller_1.recentPostbacksMap.delete(k);
+                }
+            }
+        }
     }
 }
 exports.ConversationStateService = ConversationStateService;
