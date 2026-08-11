@@ -42,13 +42,8 @@ export class QuickReplyBuilderService {
     });
   }
   /**
-   * AI veya State Machine'den gelen UI isteklerini Meta-compliant buton ve quick reply listelerine dönüştürür.
-   *
-   * @param recipientId Alıcı ID'si
-   * @param aiReplies AI'dan dönen quick reply listesi (isteğe bağlı)
-   * @param shortCode Ürün kısa kodu
-   * @param selectedSize Seçilen beden
-   * @param selectedColor Seçilen renk
+   * AI veya State Machine'den gelen UI isteklerini filtrelere göre işler.
+   * YALNIZCA Siparişi Tamamla (CHECKOUT_CONFIRM) butonuna izin verilir.
    */
   public static async buildOptionsFromAi(
     aiReplies: Array<{ title?: string; type?: string; value?: string }>,
@@ -58,103 +53,22 @@ export class QuickReplyBuilderService {
   ): Promise<InteractiveOption[]> {
     if (!aiReplies || aiReplies.length === 0) return [];
 
-    const options: InteractiveOption[] = [];
-
-    for (const reply of aiReplies.slice(0, 10)) {
+    for (const reply of aiReplies) {
       const type = (reply.type || '').toUpperCase();
       const value = reply.value || '';
-      const title = reply.title || value || '';
+      const title = reply.title || '';
 
-      if (type === 'SIZE') {
-        if (!shortCode) continue;
-        const availableSizes = await StockService.getAvailableSizes(shortCode);
-        const upperVal = value.toUpperCase();
-        if (availableSizes.includes(upperVal)) {
-          options.push({
-            title: title || upperVal,
-            payload: `SELECT_SIZE:${shortCode}:${upperVal}`,
-            type: 'SIZE',
-            value: upperVal
-          });
-        }
-      } else if (type === 'COLOR') {
-        if (!shortCode) continue;
-        const availableColors = await StockService.getAvailableColors(shortCode);
-        const upperVal = value.toUpperCase();
-        if (availableColors.includes(upperVal)) {
-          options.push({
-            title: title || upperVal,
-            payload: `SELECT_COLOR:${shortCode}:${upperVal}`,
-            type: 'COLOR',
-            value: upperVal
-          });
-        }
-      } else if (type === 'QUANTITY') {
-        if (!shortCode) continue;
-        const qty = parseInt(value, 10);
-        if (isNaN(qty) || qty <= 0) continue;
-        const stock = await StockService.getStockForSizeColor(shortCode, selectedSize, selectedColor);
-        if (qty <= stock) {
-          options.push({
-            title: title || String(qty),
-            payload: `SELECT_QUANTITY:${shortCode}:${selectedSize || 'NONE'}:${qty}`,
-            type: 'QUANTITY',
-            value: String(qty)
-          });
-        }
-      } else if (type === 'CONFIRM') {
-        options.push({
-          title: title || '✅ Tamamla',
-          payload: value === 'CHECKOUT_CONFIRM' ? 'CHECKOUT_CONFIRM' : 'CONFIRM_ADD_TO_CART',
-          type: 'CONFIRM',
-          value
-        });
-      } else if (type === 'CANCEL') {
-        options.push({
-          title: title || '❌ Vazgeç',
-          payload: 'CANCEL_CHECKOUT',
-          type: 'CANCEL',
-          value
-        });
-      } else if (type === 'ADD_PRODUCT') {
-        options.push({
-          title: title || '➕ Ürün ekle',
-          payload: 'ADD_MORE_PRODUCTS',
-          type: 'ADD_PRODUCT',
-          value
-        });
-      } else if (type === 'VIEW_CART') {
-        options.push({
-          title: title || '🛒 Sepetim',
-          payload: 'MY_CART',
-          type: 'VIEW_CART',
-          value
-        });
-      } else if (type === 'VIEW_ORDERS') {
-        options.push({
-          title: title || 'Siparişlerim',
-          payload: 'MY_ORDERS',
-          type: 'VIEW_ORDERS',
-          value
-        });
-      } else if (type === 'PRODUCT') {
-        options.push({
-          title: title || 'Ürün Detayı',
-          payload: `PRODUCT_DETAIL:${value}`,
-          type: 'PRODUCT',
-          value
-        });
-      } else if (type === 'CUSTOM_TEXT' || !type) {
-        options.push({
-          title: title.length > 20 ? title.slice(0, 19) + '…' : title,
-          payload: `SUGGESTED_TEXT:${Buffer.from(title, 'utf8').toString('base64')}`,
-          type: 'CUSTOM_TEXT',
-          value: title
-        });
+      if (
+        type === 'CONFIRM' || 
+        value === 'CHECKOUT_CONFIRM' || 
+        title.includes('Tamamla') || 
+        title.includes('Onayla')
+      ) {
+        return this.buildCheckoutOptions();
       }
     }
 
-    return options;
+    return [];
   }
 
   /**
@@ -168,13 +82,16 @@ export class QuickReplyBuilderService {
   ): Promise<InteractiveOption[]> {
     const lower = (replyText || '').toLowerCase();
 
-    // Sadece siparişi tamamlama / sepet onayında tek "Siparişi Tamamla" butonu gösterilir
+    // Sipariş tamamlama / sepet özeti / onay mesajlarında tek "Siparişi Tamamla" butonu gösterilir
     if (
       lower.includes('siparişinizi tamamla') ||
       lower.includes('siparişi tamamla') ||
       lower.includes('tamamlamak ister') ||
       lower.includes('sepeti tamamla') ||
-      lower.includes('sipariş vermek ister')
+      lower.includes('sipariş vermek ister') ||
+      lower.includes('tamamlamak için') ||
+      lower.includes('lütfen onaylayın') ||
+      lower.includes('sepet özeti')
     ) {
       return this.buildCheckoutOptions();
     }
