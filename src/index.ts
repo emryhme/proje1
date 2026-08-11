@@ -53,9 +53,9 @@ const basicAuth = (req: express.Request, res: express.Response, next: express.Ne
   }
 };
 
-// Yönetim Paneli ve Statik Dosyalar (Şifresiz Direkt Erişim)
-app.use('/admin', express.static(path.join(__dirname, '../public/admin')));
-app.get('/admin', (req, res) => {
+// Yönetim Paneli ve Statik Dosyalar (BasicAuth Korumalı)
+app.use('/admin', basicAuth, express.static(path.join(__dirname, '../public/admin')));
+app.get('/admin', basicAuth, (req, res) => {
   res.sendFile(path.join(__dirname, '../public/admin/index.html'));
 });
 
@@ -207,33 +207,33 @@ app.post('/api/settings', (req, res) => {
 import { AdminCopilotService } from './services/admin-copilot.service';
 import { AccountingController } from './controllers/accounting.controller';
 
-// Muhasebe & Finans Yönetimi API End-point'leri
-app.get('/api/accounting/summary', AccountingController.getSummary);
-app.get('/api/accounting/profit-loss', AccountingController.getProfitLoss);
-app.get('/api/accounting/balance-sheet', AccountingController.getBalanceSheet);
-app.get('/api/accounting/tax', AccountingController.getTaxSummary);
-app.get('/api/accounting/product-profitability', AccountingController.getProductProfitability);
-app.get('/api/accounting/expenses', AccountingController.getExpenses);
-app.post('/api/accounting/expenses', AccountingController.createExpense);
-app.get('/api/accounting/income', AccountingController.getIncome);
-app.post('/api/accounting/income', AccountingController.createIncome);
-app.post('/api/accounting/confirm-draft', AccountingController.confirmDraft);
-app.get('/api/accounting/invoices', AccountingController.getInvoices);
-app.post('/api/accounting/invoices', AccountingController.createInvoice);
-app.post('/api/accounting/payments', AccountingController.recordPayment);
-app.get('/api/accounting/transactions', AccountingController.getTransactions);
+// Muhasebe & Finans Yönetimi API End-point'leri (BasicAuth Korumalı)
+app.get('/api/accounting/summary', basicAuth, AccountingController.getSummary);
+app.get('/api/accounting/profit-loss', basicAuth, AccountingController.getProfitLoss);
+app.get('/api/accounting/balance-sheet', basicAuth, AccountingController.getBalanceSheet);
+app.get('/api/accounting/tax', basicAuth, AccountingController.getTaxSummary);
+app.get('/api/accounting/product-profitability', basicAuth, AccountingController.getProductProfitability);
+app.get('/api/accounting/expenses', basicAuth, AccountingController.getExpenses);
+app.post('/api/accounting/expenses', basicAuth, AccountingController.createExpense);
+app.get('/api/accounting/income', basicAuth, AccountingController.getIncome);
+app.post('/api/accounting/income', basicAuth, AccountingController.createIncome);
+app.post('/api/accounting/confirm-draft', basicAuth, AccountingController.confirmDraft);
+app.get('/api/accounting/invoices', basicAuth, AccountingController.getInvoices);
+app.post('/api/accounting/invoices', basicAuth, AccountingController.createInvoice);
+app.post('/api/accounting/payments', basicAuth, AccountingController.recordPayment);
+app.get('/api/accounting/transactions', basicAuth, AccountingController.getTransactions);
 
 import { ProfitController } from './controllers/profit.controller';
 
-// Ürün Maliyeti, Satış ve Gerçek Kâr Analizi API End-point'leri
-app.get('/api/profit/summary', ProfitController.getSummary);
-app.get('/api/profit/net-summary', ProfitController.getNetSummary);
-app.get('/api/profit/inventory-potential', ProfitController.getInventoryPotential);
-app.get('/api/profit/low-margin', ProfitController.getLowMarginProducts);
-app.get('/api/profit/expense-breakdown', ProfitController.getExpenseBreakdown);
-app.get('/api/profit/products', ProfitController.getProducts);
-app.get('/api/profit/chart', ProfitController.getChart);
-app.get('/api/profit/forecast', ProfitController.getForecast);
+// Ürün Maliyeti, Satış ve Gerçek Kâr Analizi API End-point'leri (BasicAuth Korumalı)
+app.get('/api/profit/summary', basicAuth, ProfitController.getSummary);
+app.get('/api/profit/net-summary', basicAuth, ProfitController.getNetSummary);
+app.get('/api/profit/inventory-potential', basicAuth, ProfitController.getInventoryPotential);
+app.get('/api/profit/low-margin', basicAuth, ProfitController.getLowMarginProducts);
+app.get('/api/profit/expense-breakdown', basicAuth, ProfitController.getExpenseBreakdown);
+app.get('/api/profit/products', basicAuth, ProfitController.getProducts);
+app.get('/api/profit/chart', basicAuth, ProfitController.getChart);
+app.get('/api/profit/forecast', basicAuth, ProfitController.getForecast);
 
 // Demo Sipariş Tohumlama End-point'i (Geliştirme / Test Ortamı Korumalı)
 app.all('/api/admin/seed-demo-orders', async (req, res) => {
