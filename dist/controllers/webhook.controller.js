@@ -1,6 +1,10 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WebhookController = exports.recentPostbacksMap = void 0;
+const crypto_1 = __importDefault(require("crypto"));
 const env_1 = require("../config/env");
 const regex_util_1 = require("../utils/regex.util");
 const ai_service_1 = require("../services/ai.service");
@@ -51,6 +55,31 @@ class WebhookController {
      * Gelen Instagram / Messenger Mesajlarını İşleme (POST /webhook/instagram & /api/webhook/instagram)
      */
     static async handleWebhook(req, res) {
+        // Meta X-Hub-Signature-256 (HMAC-SHA256) Güvenlik Doğrulaması
+        if (env_1.env.fbAppSecret) {
+            const signatureHeader = req.headers['x-hub-signature-256'] || '';
+            if (!signatureHeader || !signatureHeader.startsWith('sha256=')) {
+                console.warn('[WebhookController] ⛔ GÜVENLİK İHLALİ: X-Hub-Signature-256 başlığı eksik veya geçersiz!');
+                res.status(403).send('Forbidden: Missing or invalid signature header');
+                return;
+            }
+            const expectedSignature = signatureHeader.substring(7);
+            const rawBody = req.rawBody || Buffer.from(JSON.stringify(req.body || {}));
+            const calculatedHmac = crypto_1.default
+                .createHmac('sha256', env_1.env.fbAppSecret)
+                .update(rawBody)
+                .digest('hex');
+            const expectedBuf = Buffer.from(expectedSignature, 'utf8');
+            const calculatedBuf = Buffer.from(calculatedHmac, 'utf8');
+            if (expectedBuf.length !== calculatedBuf.length || !crypto_1.default.timingSafeEqual(expectedBuf, calculatedBuf)) {
+                console.warn('[WebhookController] ⛔ GÜVENLİK İHLALİ: Meta imza doğrulaması başarısız!');
+                res.status(403).send('Forbidden: HMAC signature mismatch');
+                return;
+            }
+        }
+        else {
+            console.warn('[WebhookController] ⚠️ UYARI: FB_APP_SECRET .env dosyasında tanımlanmamış. HMAC doğrulama pas geçiliyor.');
+        }
         const body = req.body;
         console.log('[WebhookController] 📩 META WEBHOOK PAKETİ GELDİ:');
         console.log(JSON.stringify(body, null, 2));

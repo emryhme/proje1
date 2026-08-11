@@ -28,7 +28,11 @@ app.use((req, res, next) => {
     }
     next();
 });
-app.use(express_1.default.json());
+app.use(express_1.default.json({
+    verify: (req, _res, buf) => {
+        req.rawBody = buf;
+    }
+}));
 app.use(express_1.default.urlencoded({ extended: true }));
 // HTTP Basic Auth Middleware (Yönetim Koruması)
 const ADMIN_USER = process.env.ADMIN_USER || 'tonystark';

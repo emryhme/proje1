@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const readline_1 = __importDefault(require("readline"));
 const axios_1 = __importDefault(require("axios"));
+const crypto_1 = __importDefault(require("crypto"));
 const env_1 = require("../config/env");
 /**
  * iscworks bot - Meta Instagram Webhook CLI & Test Terminali
@@ -154,7 +155,18 @@ async function simulateIncomingMessage() {
         };
         console.log(`\n🚀 Webhook Mesajı POST Ediliyor (${testSenderId}): "${msgText}"...`);
         try {
-            const res = await axios_1.default.post(`${BASE_URL}/webhook/instagram`, mockPayload);
+            const requestHeaders = {
+                'Content-Type': 'application/json'
+            };
+            if (env_1.env.fbAppSecret) {
+                const rawJsonString = JSON.stringify(mockPayload);
+                const signature = crypto_1.default
+                    .createHmac('sha256', env_1.env.fbAppSecret)
+                    .update(rawJsonString)
+                    .digest('hex');
+                requestHeaders['x-hub-signature-256'] = `sha256=${signature}`;
+            }
+            const res = await axios_1.default.post(`${BASE_URL}/webhook/instagram`, mockPayload, { headers: requestHeaders });
             console.log(`✅ Sunucu Yanıtı: HTTP ${res.status} (${res.data})`);
             console.log('🤖 F.R.I.D.A.Y. AI Ajanları mesajı işledi. Sunucu loglarını kontrol edin!\n');
         }

@@ -1,5 +1,6 @@
 import readline from 'readline';
 import axios from 'axios';
+import crypto from 'crypto';
 import { env } from '../config/env';
 
 /**
@@ -161,7 +162,20 @@ async function simulateIncomingMessage() {
     console.log(`\n🚀 Webhook Mesajı POST Ediliyor (${testSenderId}): "${msgText}"...`);
 
     try {
-      const res = await axios.post(`${BASE_URL}/webhook/instagram`, mockPayload);
+      const requestHeaders: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+
+      if (env.fbAppSecret) {
+        const rawJsonString = JSON.stringify(mockPayload);
+        const signature = crypto
+          .createHmac('sha256', env.fbAppSecret)
+          .update(rawJsonString)
+          .digest('hex');
+        requestHeaders['x-hub-signature-256'] = `sha256=${signature}`;
+      }
+
+      const res = await axios.post(`${BASE_URL}/webhook/instagram`, mockPayload, { headers: requestHeaders });
       console.log(`✅ Sunucu Yanıtı: HTTP ${res.status} (${res.data})`);
       console.log('🤖 F.R.I.D.A.Y. AI Ajanları mesajı işledi. Sunucu loglarını kontrol edin!\n');
     } catch (err: any) {

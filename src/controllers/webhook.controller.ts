@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import crypto from 'crypto';
 import { env } from '../config/env';
 import { extractProductCode } from '../utils/regex.util';
 import { AIService } from '../services/ai.service';
@@ -56,6 +57,35 @@ export class WebhookController {
    * Gelen Instagram / Messenger Mesajlarını İşleme (POST /webhook/instagram & /api/webhook/instagram)
    */
   public static async handleWebhook(req: Request, res: Response): Promise<void> {
+    // Meta X-Hub-Signature-256 (HMAC-SHA256) Güvenlik Doğrulaması
+    if (env.fbAppSecret) {
+      const signatureHeader = (req.headers['x-hub-signature-256'] as string) || '';
+      if (!signatureHeader || !signatureHeader.startsWith('sha256=')) {
+        console.warn('[WebhookController] ⛔ GÜVENLİK İHLALİ: X-Hub-Signature-256 başlığı eksik veya geçersiz!');
+        res.status(403).send('Forbidden: Missing or invalid signature header');
+        return;
+      }
+
+      const expectedSignature = signatureHeader.substring(7);
+      const rawBody = (req as any).rawBody || Buffer.from(JSON.stringify(req.body || {}));
+      
+      const calculatedHmac = crypto
+        .createHmac('sha256', env.fbAppSecret)
+        .update(rawBody)
+        .digest('hex');
+
+      const expectedBuf = Buffer.from(expectedSignature, 'utf8');
+      const calculatedBuf = Buffer.from(calculatedHmac, 'utf8');
+
+      if (expectedBuf.length !== calculatedBuf.length || !crypto.timingSafeEqual(expectedBuf, calculatedBuf)) {
+        console.warn('[WebhookController] ⛔ GÜVENLİK İHLALİ: Meta imza doğrulaması başarısız!');
+        res.status(403).send('Forbidden: HMAC signature mismatch');
+        return;
+      }
+    } else {
+      console.warn('[WebhookController] ⚠️ UYARI: FB_APP_SECRET .env dosyasında tanımlanmamış. HMAC doğrulama pas geçiliyor.');
+    }
+
     const body = req.body;
 
     console.log('[WebhookController] 📩 META WEBHOOK PAKETİ GELDİ:');
