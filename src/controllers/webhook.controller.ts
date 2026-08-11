@@ -16,6 +16,18 @@ function stripEmojis(str: string): string {
   return str.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
 }
 
+export const recentPostbacksMap = new Map<string, number>();
+
+// Cleanup stale recent postback entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, time] of recentPostbacksMap.entries()) {
+    if (now - time > 10000) {
+      recentPostbacksMap.delete(k);
+    }
+  }
+}, 5 * 60 * 1000);
+
 export class WebhookController {
   /**
    * Facebook / Instagram Webhook Doğrulama (GET /webhook/instagram & /api/webhook/instagram)
@@ -168,16 +180,39 @@ export class WebhookController {
   public static async processEventOrReply(senderId: string, text: string, payload: string) {
     try {
       const cleanText = stripEmojis(text);
-      const rawAction = payload || cleanText || text;
+      let rawAction = (payload || cleanText || text).trim();
       const lowerText = cleanText.toLowerCase().trim();
+
+      // Alias Normalizasyonları
+      if (rawAction === 'CHECKOUT_COMPLETE') rawAction = 'CHECKOUT_CONFIRM';
+      if (rawAction === 'ADD_PRODUCT') rawAction = 'ADD_MORE_PRODUCTS';
+      if (rawAction === 'CANCEL') rawAction = 'CANCEL_CHECKOUT';
+
+      // Duplicate Event Protection (1500ms debounce for identical postbacks from same user)
+      if (payload && payload.trim()) {
+        const now = Date.now();
+        const postbackKey = `${senderId}:${rawAction}`;
+        const lastTime = recentPostbacksMap.get(postbackKey) || 0;
+        if (lastTime > 0 && now - lastTime < 1500) {
+          console.log(`[Instagram Interactive] DUPLICATE EVENT IGNORED senderId=${senderId} payload=${rawAction}`);
+          return;
+        }
+        recentPostbacksMap.set(postbackKey, now);
+      }
 
       const stateKey = ConversationStateService.buildKey('default', 'instagram', senderId);
       const ctx = (AIService as any).getSessionContext(senderId);
+
+      // Helper function for interactive logging
+      const logInteractive = (actionName: string) => {
+        console.log(`[Instagram Interactive] senderId=${senderId} type=POSTBACK payload=${rawAction} action=${actionName} ai=false`);
+      };
 
       // ─────────────────────────────────────────────
       // 1. SELECT_SIZE:<shortCode>:<size> Postback
       // ─────────────────────────────────────────────
       if (rawAction.startsWith('SELECT_SIZE:')) {
+        logInteractive('SELECT_SIZE');
         const parts = rawAction.split(':');
         const shortCode = (parts[1] || '').trim().toUpperCase();
         const size = (parts[2] || '').trim().toUpperCase();
@@ -200,6 +235,7 @@ export class WebhookController {
       // 2. SELECT_COLOR:<shortCode>:<color> Postback
       // ─────────────────────────────────────────────
       if (rawAction.startsWith('SELECT_COLOR:')) {
+        logInteractive('SELECT_COLOR');
         const parts = rawAction.split(':');
         const shortCode = (parts[1] || '').trim().toUpperCase();
         const color = (parts[2] || '').trim();
@@ -229,6 +265,7 @@ export class WebhookController {
       // 3. SELECT_QUANTITY:<shortCode>:<size>:<qty> Postback
       // ─────────────────────────────────────────────
       if (rawAction.startsWith('SELECT_QUANTITY:')) {
+        logInteractive('SELECT_QUANTITY');
         const parts = rawAction.split(':');
         const shortCode = (parts[1] || '').trim().toUpperCase();
         const size = parts[2] === 'NONE' ? undefined : (parts[2] || '').trim().toUpperCase();
@@ -262,6 +299,7 @@ export class WebhookController {
       // 4. CONFIRM_ADD_TO_CART Postback
       // ─────────────────────────────────────────────
       if (rawAction === 'CONFIRM_ADD_TO_CART') {
+        logInteractive('CONFIRM_ADD_TO_CART');
         const stateData = ConversationStateService.getState(stateKey);
         const productCode = stateData.productCode;
         const qty = stateData.selectedQuantity || 1;
@@ -285,6 +323,7 @@ export class WebhookController {
       // 5. CHECKOUT_CONFIRM Postback
       // ─────────────────────────────────────────────
       if (rawAction === 'CHECKOUT_CONFIRM') {
+        logInteractive('CHECKOUT_CONFIRM');
         console.log(`[ConversationState] CHECKOUT_CONFIRM received`);
         const cart = CartService.getCart(senderId);
         if (cart.length === 0) {
@@ -321,6 +360,7 @@ export class WebhookController {
       // 6. CANCEL_CHECKOUT Postback
       // ─────────────────────────────────────────────
       if (rawAction === 'CANCEL_CHECKOUT') {
+        logInteractive('CANCEL_CHECKOUT');
         console.log(`[ConversationState] CANCEL_CHECKOUT received`);
         ConversationStateService.transition(stateKey, 'CANCEL');
         const fallbackOptions = QuickReplyBuilderService.buildFallbackReplies();
@@ -335,6 +375,7 @@ export class WebhookController {
       // 7. ADD_MORE_PRODUCTS Postback
       // ─────────────────────────────────────────────
       if (rawAction === 'ADD_MORE_PRODUCTS') {
+        logInteractive('ADD_MORE_PRODUCTS');
         console.log(`[ConversationState] ADD_MORE_PRODUCTS received`);
         ConversationStateService.transition(stateKey, 'ADD_MORE');
         const products = await StockService.getAllProducts();
@@ -346,6 +387,7 @@ export class WebhookController {
 
       // 8. ACTION: ADD_TO_CART:<productCode>[:size] veya "Sepete Ekle"
       if (rawAction.startsWith('ADD_TO_CART:') || lowerText === 'sepete ekle' || lowerText === 'sepete ekle!') {
+        logInteractive('ADD_TO_CART');
         let productCode = '';
         let size: string | undefined = undefined;
 
@@ -416,6 +458,7 @@ export class WebhookController {
 
       // 9. ACTION: PRODUCT_DETAIL:<productCode>
       if (rawAction.startsWith('PRODUCT_DETAIL:')) {
+        logInteractive('PRODUCT_DETAIL');
         const productCode = rawAction.replace('PRODUCT_DETAIL:', '').trim().toUpperCase();
         console.log(`[InstagramMessage] Button clicked: PRODUCT_DETAIL for ${productCode}`);
 
@@ -466,6 +509,7 @@ export class WebhookController {
         lowerText.includes('katalog') ||
         lowerText.includes('ürünleri göster')
       ) {
+        logInteractive('PRODUCT_LIST');
         console.log(`[InstagramMessage] Sending product carousel to ${senderId}`);
         const products = await StockService.getAllProducts();
         if (!products || products.length === 0) {
@@ -482,6 +526,7 @@ export class WebhookController {
 
       // 11. ACTION: MY_CART (Sepeti Göster)
       if (rawAction === 'MY_CART' || lowerText === 'sepetim' || lowerText === 'sepeti göster') {
+        logInteractive('MY_CART');
         console.log(`[InstagramMessage] Showing cart to ${senderId}`);
         const cart = CartService.getCart(senderId);
         if (!cart || cart.length === 0) {
@@ -516,6 +561,7 @@ export class WebhookController {
 
       // 12. ACTION: MY_ORDERS (Müşterinin Siparişlerini Göster)
       if (rawAction === 'MY_ORDERS' || lowerText === 'siparişlerim' || lowerText === 'siparislerim') {
+        logInteractive('MY_ORDERS');
         console.log(`[InstagramMessage] Showing orders to ${senderId}`);
         const allOrders = await OrderService.getOrders();
         const userOrders = allOrders.filter(o => o.senderId === senderId);
@@ -547,6 +593,7 @@ export class WebhookController {
 
       // 13. ACTION: HUMAN_SUPPORT (Canlı Destek)
       if (rawAction === 'HUMAN_SUPPORT' || lowerText.includes('canlı destek') || lowerText === 'destek') {
+        logInteractive('HUMAN_SUPPORT');
         return InstagramMessageService.sendText(
           senderId,
           '**Müşteri Temsilcimiz:** Temsilcimiz en kısa sürede sizinle ilgilenecektir. Lütfen sormak istediğiniz konuyu doğrudan yazabilirsiniz.'
@@ -555,6 +602,7 @@ export class WebhookController {
 
       // 14. DEFAULT: AI Chat Processing (F.R.I.D.A.Y.) + Dynamic Quick Replies
       try {
+        console.log(`[AI] senderId=${senderId} reason=NATURAL_LANGUAGE ai=true`);
         const aiResult = await AIService.processMessage(senderId, cleanText || text);
         const { reply, suggestedReplies } = aiResult;
 

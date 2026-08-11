@@ -20,6 +20,8 @@
 // Types
 // ─────────────────────────────────────────────
 
+import { recentPostbacksMap } from '../controllers/webhook.controller';
+
 export type ConvState =
   | 'BROWSING'
   | 'SELECTING_PRODUCT'
@@ -249,5 +251,14 @@ export class ConversationStateService {
   /** Test için: belirli key'in state'ini sil */
   public static clear(key: string): void {
     stateMap.delete(key);
+    const parts = key.split(':');
+    const senderId = parts[2] || parts[0];
+    if (senderId) {
+      for (const k of recentPostbacksMap.keys()) {
+        if (k.startsWith(`${senderId}:`)) {
+          recentPostbacksMap.delete(k);
+        }
+      }
+    }
   }
 }
