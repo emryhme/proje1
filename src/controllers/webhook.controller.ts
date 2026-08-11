@@ -94,41 +94,28 @@ export class WebhookController {
           }
         }
 
-        if (!senderId) continue;
-
         // ─────────────────────────────────────────
-        // SUGGESTED_TEXT payload → Mesaj olarak anında işlet (0 buffer wait)
-        // Dynamic Quick Reply butonuna basıldığında buraya düşer
+        // SUGGESTED_TEXT ise metni deşifre et
         // ─────────────────────────────────────────
         if (payload && QuickReplyBuilderService.isSuggestedText(payload)) {
           const decodedText = QuickReplyBuilderService.decodeSuggestedText(payload);
           if (decodedText) {
-            console.log(`[WebhookController Messaging] SUGGESTED_TEXT decoded & INSTANT EXECUTE: "${decodedText}" (senderId: ${senderId})`);
-            WebhookController.processEventOrReply(senderId, decodedText, '');
+            incomingText = decodedText;
           }
-          continue;
         }
 
         // ─────────────────────────────────────────
-        // POSTBACK / ACTION → Buffer bypass (ADD_TO_CART, MY_CART vs.)
+        // BUTON VE METİN MESAJLARINI NORMAL MESAJ OLARAK AL
         // ─────────────────────────────────────────
-        if (payload && payload.trim()) {
-          console.log(`[WebhookController Messaging] POSTBACK (senderId: ${senderId}): payload="${payload}"`);
-          WebhookController.processEventOrReply(senderId, incomingText.trim(), payload.trim());
-          continue;
-        }
-
-        // ─────────────────────────────────────────
-        // PLAIN TEXT → MessageBuffer debounce katmanı
-        // ─────────────────────────────────────────
-        if (incomingText.trim()) {
-          console.log(`[WebhookController Messaging] TEXT (senderId: ${senderId}): text="${incomingText}"`);
+        const textToProcess = (incomingText || payload).trim();
+        if (textToProcess) {
+          console.log(`[WebhookController Messaging] NORMAL MESAJ (Button/Text) (senderId: ${senderId}): "${textToProcess}"`);
           MessageBufferService.addMessage(
-            'default',      // storeId (single-tenant, multi-tenant geçişte burası değişir)
+            'default',      // storeId
             'instagram',
             senderId,
-            incomingText.trim(),
-            async (convKey, storeId, channel, userId, combinedText) => {
+            textToProcess,
+            async (_convKey, _storeId, _channel, userId, combinedText) => {
               await WebhookController.processEventOrReply(userId, combinedText, '');
             }
           );
@@ -151,13 +138,13 @@ export class WebhookController {
         if (!senderId) continue;
 
         if (incomingText.trim()) {
-          console.log(`[WebhookController Changes] TEXT (senderId: ${senderId}): "${incomingText}"`);
+          console.log(`[WebhookController Changes] NORMAL MESAJ (senderId: ${senderId}): "${incomingText.trim()}"`);
           MessageBufferService.addMessage(
             'default',
             'instagram',
             senderId,
             incomingText.trim(),
-            async (convKey, storeId, channel, userId, combinedText) => {
+            async (_convKey, _storeId, _channel, userId, combinedText) => {
               await WebhookController.processEventOrReply(userId, combinedText, '');
             }
           );

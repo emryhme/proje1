@@ -197,38 +197,20 @@ class InstagramMessageService {
             console.log(`[InstagramMessage Mock ButtonMessage -> ${recipientId}]: ${text}\nButtons:`, buttons.map(b => b.title));
             return { success: true, isMocked: true, messageId: `mock_btn_${Date.now()}` };
         }
-        const payload = MetaInstagramPayloadBuilder.buildButtonTemplatePayload(recipientId, text, buttons);
-        try {
-            console.log(`[InstagramMessage] 📤 Sending button message (${buttons.length} adet) -> ${recipientId}`);
-            const res = await axios_1.default.post(this.getApiUrl(), payload, { headers: this.getHeaders() });
-            const msgId = res.data?.message_id || res.data?.recipient_id;
-            console.log(`[InstagramMessage] ✅ ButtonMessage başarıyla ulaştırıldı (MsgID: ${msgId})`);
-            return { success: true, httpStatus: res.status, messageId: msgId };
-        }
-        catch (error) {
-            const errRes = this.logMetaError('sendButtonMessage', recipientId, error);
-            // Fallback: QuickReplies veya Düz Metin
-            console.warn(`[InstagramMessage Fallback] ⚠️ ButtonMessage başarısız oldu, QuickReplies/Düz Metin fallback'ine geçiliyor...`);
-            const quickReplies = buttons.map(b => ({ title: b.title, payload: b.payload }));
-            await this.sendQuickReplies(recipientId, text, quickReplies);
-            return errRes;
-        }
+        // Instagram DM API Quick Replies compatibility (Instagram standalone button template is deprecated)
+        const quickReplies = buttons.map(b => ({ title: b.title, payload: b.payload }));
+        return this.sendQuickReplies(recipientId, text, quickReplies);
     }
     /**
      * 3b. Meta Limitlerine Göre Otomatik Buton veya Quick Reply Gönderir
-     * Sayı <= 3 ise Button Template, > 3 ise Quick Reply (Maks 13 adet) kullanılır.
+     * Instagram DM standartlarına tam uyumlu quick replies kullanır.
      */
     static async sendButtonsOrQuickReplies(recipientId, text, options) {
-        if (options.length <= 3 && options.length > 0) {
-            return this.sendButtonMessage(recipientId, text, options);
-        }
-        else {
-            const quickReplies = options.map(opt => ({
-                title: opt.title,
-                payload: opt.payload
-            }));
-            return this.sendQuickReplies(recipientId, text, quickReplies);
-        }
+        const quickReplies = options.map(opt => ({
+            title: opt.title,
+            payload: opt.payload
+        }));
+        return this.sendQuickReplies(recipientId, text, quickReplies);
     }
     /**
      * 4. Tekli Ürün Kartı Gönderir (Product Card)

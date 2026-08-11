@@ -85,37 +85,23 @@ class WebhookController {
                         }
                     }
                 }
-                if (!senderId)
-                    continue;
                 // ─────────────────────────────────────────
-                // SUGGESTED_TEXT payload → Mesaj olarak buffer'a yönlendir
-                // Dynamic Quick Reply butonuna basıldığında buraya düşer
+                // SUGGESTED_TEXT ise metni deşifre et
                 // ─────────────────────────────────────────
                 if (payload && quick_reply_builder_service_1.QuickReplyBuilderService.isSuggestedText(payload)) {
                     const decodedText = quick_reply_builder_service_1.QuickReplyBuilderService.decodeSuggestedText(payload);
                     if (decodedText) {
-                        console.log(`[WebhookController Messaging] SUGGESTED_TEXT decoded: "${decodedText}" (senderId: ${senderId})`);
-                        message_buffer_service_1.MessageBufferService.addMessage('default', 'instagram', senderId, decodedText, async (_convKey, _storeId, _channel, userId, combinedText) => {
-                            await WebhookController.processEventOrReply(userId, combinedText, '');
-                        });
+                        incomingText = decodedText;
                     }
-                    continue;
                 }
                 // ─────────────────────────────────────────
-                // POSTBACK / ACTION → Buffer bypass (ADD_TO_CART, MY_CART vs.)
+                // BUTON VE METİN MESAJLARINI NORMAL MESAJ OLARAK AL
                 // ─────────────────────────────────────────
-                if (payload && payload.trim()) {
-                    console.log(`[WebhookController Messaging] POSTBACK (senderId: ${senderId}): payload="${payload}"`);
-                    WebhookController.processEventOrReply(senderId, incomingText.trim(), payload.trim());
-                    continue;
-                }
-                // ─────────────────────────────────────────
-                // PLAIN TEXT → MessageBuffer debounce katmanı
-                // ─────────────────────────────────────────
-                if (incomingText.trim()) {
-                    console.log(`[WebhookController Messaging] TEXT (senderId: ${senderId}): text="${incomingText}"`);
-                    message_buffer_service_1.MessageBufferService.addMessage('default', // storeId (single-tenant, multi-tenant geçişte burası değişir)
-                    'instagram', senderId, incomingText.trim(), async (convKey, storeId, channel, userId, combinedText) => {
+                const textToProcess = (incomingText || payload).trim();
+                if (textToProcess) {
+                    console.log(`[WebhookController Messaging] NORMAL MESAJ (Button/Text) (senderId: ${senderId}): "${textToProcess}"`);
+                    message_buffer_service_1.MessageBufferService.addMessage('default', // storeId
+                    'instagram', senderId, textToProcess, async (_convKey, _storeId, _channel, userId, combinedText) => {
                         await WebhookController.processEventOrReply(userId, combinedText, '');
                     });
                 }
@@ -133,8 +119,8 @@ class WebhookController {
                 if (!senderId)
                     continue;
                 if (incomingText.trim()) {
-                    console.log(`[WebhookController Changes] TEXT (senderId: ${senderId}): "${incomingText}"`);
-                    message_buffer_service_1.MessageBufferService.addMessage('default', 'instagram', senderId, incomingText.trim(), async (convKey, storeId, channel, userId, combinedText) => {
+                    console.log(`[WebhookController Changes] NORMAL MESAJ (senderId: ${senderId}): "${incomingText.trim()}"`);
+                    message_buffer_service_1.MessageBufferService.addMessage('default', 'instagram', senderId, incomingText.trim(), async (_convKey, _storeId, _channel, userId, combinedText) => {
                         await WebhookController.processEventOrReply(userId, combinedText, '');
                     });
                 }
@@ -150,7 +136,7 @@ class WebhookController {
             let rawAction = (payload || cleanText || text).trim();
             const lowerText = cleanText.toLowerCase().trim();
             // Alias Normalizasyonları
-            if (rawAction === 'CHECKOUT_COMPLETE')
+            if (rawAction === 'CHECKOUT' || rawAction === 'CHECKOUT_COMPLETE')
                 rawAction = 'CHECKOUT_CONFIRM';
             if (rawAction === 'ADD_PRODUCT')
                 rawAction = 'ADD_MORE_PRODUCTS';
@@ -437,7 +423,7 @@ class WebhookController {
                 }).join('\n\n');
                 const cartText = `**SEPETİNİZ:**\n\n${cartListStr}\n\n**Toplam Tutar:** ${total} TL`;
                 return instagram_message_service_1.InstagramMessageService.sendButtonMessage(senderId, cartText, [
-                    { title: 'Sipariş Ver', payload: 'CHECKOUT' },
+                    { title: 'Sipariş Ver', payload: 'CHECKOUT_CONFIRM' },
                     { title: 'Ürün Ekle', payload: 'PRODUCT_LIST' }
                 ]);
             }
