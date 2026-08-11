@@ -619,12 +619,13 @@ Yanıtını MUTLAKA aşağıdaki JSON formatında ver:
 
 suggested_replies / quick_replies kuralları:
 - You are controlling the conversational suggestion UI.
-- When your response asks the customer to choose from known options, return those options as quick_replies.
+- CRITICAL RULE: NEVER ask for Size and Quantity at the same time in one sentence! Always ask for Size FIRST, then Quantity SECOND.
+- When your response asks the customer to choose from known options, return those options in quick_replies.
 - Supported types:
   - SIZE: value represents size option (e.g. S, M, L, XL)
   - COLOR: value represents color option
   - QUANTITY: value represents quantity (e.g. 1, 2, 3)
-  - CONFIRM: value represents confirmation (e.g. CHECKOUT_CONFIRM or CONFIRM_ADD_TO_CART)
+  - CONFIRM: value represents confirmation (CHECKOUT_CONFIRM or CONFIRM_ADD_TO_CART)
   - CANCEL: value is CANCEL_CHECKOUT
   - ADD_PRODUCT: value is ADD_MORE_PRODUCTS
   - VIEW_CART: value is MY_CART
@@ -634,7 +635,10 @@ suggested_replies / quick_replies kuralları:
 - Never generate storeId, productId, orderId or database identifiers.
 - Do not output raw API payloads.
 - Keep quick_replies count up to 3-4 options. Keep titles short.
-- If there is no specific action or option needed, return an empty array or custom conversational follow-up questions with type: "CUSTOM_TEXT".
+- If asking for Size: "Hangi bedeni tercih edersiniz?" -> include quick_replies for available sizes.
+- If asking for Quantity: "Kaç adet istersiniz?" -> include quick_replies for 1, 2, 3.
+- If asking for Checkout: "Siparişinizi tamamlamak ister misiniz?" -> include quick_replies for CONFIRM, ADD_PRODUCT, CANCEL.
+- If there is no specific action or option needed, return custom follow-up questions with type: "CUSTOM_TEXT".
 </YANIT_FORMATI>
 `);
 

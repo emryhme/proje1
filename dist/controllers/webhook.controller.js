@@ -422,10 +422,20 @@ class WebhookController {
                 const aiResult = await ai_service_1.AIService.processMessage(senderId, cleanText || text);
                 const { reply, suggestedReplies } = aiResult;
                 const stateData = conversation_state_service_1.ConversationStateService.getState(stateKey);
-                const shortCode = stateData.shortCode;
+                let shortCode = stateData.shortCode;
+                if (!shortCode) {
+                    const extracted = (0, regex_util_1.extractProductCode)(cleanText || text) || (0, regex_util_1.extractProductCode)(reply);
+                    if (extracted) {
+                        shortCode = extracted.split('-')[0].toUpperCase();
+                        stateData.shortCode = shortCode;
+                    }
+                }
                 const selectedSize = stateData.selectedSize;
                 const selectedColor = stateData.selectedColor;
-                const qrItems = await quick_reply_builder_service_1.QuickReplyBuilderService.buildOptionsFromAi(suggestedReplies || [], shortCode, selectedSize, selectedColor);
+                let qrItems = await quick_reply_builder_service_1.QuickReplyBuilderService.buildOptionsFromAi(suggestedReplies || [], shortCode, selectedSize, selectedColor);
+                if (!qrItems || qrItems.length === 0) {
+                    qrItems = await quick_reply_builder_service_1.QuickReplyBuilderService.autoDetectOptions(reply, shortCode, selectedSize, selectedColor);
+                }
                 if (qrItems.length > 0) {
                     const instagramReplies = qrItems.map(qr => ({ title: qr.title, payload: qr.payload }));
                     await instagram_message_service_1.InstagramMessageService.sendButtonsOrQuickReplies(senderId, reply, instagramReplies);

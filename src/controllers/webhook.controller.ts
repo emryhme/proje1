@@ -557,16 +557,33 @@ export class WebhookController {
         const { reply, suggestedReplies } = aiResult;
 
         const stateData = ConversationStateService.getState(stateKey);
-        const shortCode = stateData.shortCode;
+        let shortCode = stateData.shortCode;
+        if (!shortCode) {
+          const extracted = extractProductCode(cleanText || text) || extractProductCode(reply);
+          if (extracted) {
+            shortCode = extracted.split('-')[0].toUpperCase();
+            stateData.shortCode = shortCode;
+          }
+        }
+
         const selectedSize = stateData.selectedSize;
         const selectedColor = stateData.selectedColor;
 
-        const qrItems = await QuickReplyBuilderService.buildOptionsFromAi(
+        let qrItems = await QuickReplyBuilderService.buildOptionsFromAi(
           suggestedReplies || [],
           shortCode,
           selectedSize,
           selectedColor
         );
+
+        if (!qrItems || qrItems.length === 0) {
+          qrItems = await QuickReplyBuilderService.autoDetectOptions(
+            reply,
+            shortCode,
+            selectedSize,
+            selectedColor
+          );
+        }
 
         if (qrItems.length > 0) {
           const instagramReplies = qrItems.map(qr => ({ title: qr.title, payload: qr.payload }));

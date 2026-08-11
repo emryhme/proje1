@@ -156,6 +156,38 @@ class QuickReplyBuilderService {
         return options;
     }
     /**
+     * AI metnini analiz ederek beden, adet veya sepet tamamlama sorusu varsa otomatik DB butonlarını üretir.
+     */
+    static async autoDetectOptions(replyText, shortCode, selectedSize, selectedColor) {
+        const lower = (replyText || '').toLowerCase();
+        // 1. Beden sorma tespiti ("hangi beden", "bedeninizi", "beden seçin")
+        if (lower.includes('beden') || lower.includes('size')) {
+            if (shortCode) {
+                const sizeOpts = await this.buildSizeOptions(shortCode);
+                if (sizeOpts.length > 0)
+                    return sizeOpts;
+            }
+        }
+        // 2. Adet sorma tespiti ("kaç adet", "kaç tane", "adet belirt", "kaç adet istersiniz")
+        if (lower.includes('kaç adet') || lower.includes('kaç tane') || lower.includes('adet belirt') || lower.includes('kaç adet istersiniz')) {
+            if (shortCode) {
+                const qtyOpts = await this.buildQuantityOptions(shortCode, selectedSize, selectedColor);
+                if (qtyOpts.length > 0)
+                    return qtyOpts;
+            }
+        }
+        // 3. Sepet / Sipariş Tamamlama veya Başka ürün ekleme sorma tespiti
+        if (lower.includes('siparişinizi tamamla') ||
+            lower.includes('sepete eklemek') ||
+            lower.includes('başka bir şey eklemek') ||
+            lower.includes('ürün eklemek') ||
+            lower.includes('tamamlamak ister') ||
+            lower.includes('sepeti tamamla')) {
+            return this.buildCheckoutOptions();
+        }
+        return [];
+    }
+    /**
      * Beden seçimi butonlarını (veya QR) DB varyantlarına göre oluşturur.
      */
     static async buildSizeOptions(shortCode) {
