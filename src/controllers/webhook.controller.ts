@@ -240,13 +240,11 @@ export class WebhookController {
         ConversationStateService.transition(stateKey, 'COLOR_SELECTED', matchedColor);
         const availableSizes = await StockService.getAvailableSizes(shortCode);
         if (availableSizes.length > 0) {
-          const sizeOptions = await QuickReplyBuilderService.buildSizeOptions(shortCode);
-          const promptText = `Renk olarak ${matchedColor} seçtiniz. Lütfen beden tercihinizi yapın:`;
-          return InstagramMessageService.sendButtonsOrQuickReplies(senderId, promptText, sizeOptions);
+          const promptText = `Renk olarak ${matchedColor} seçtiniz. Lütfen beden tercihinizi yazınız (Örn: ${availableSizes.join(', ')}):`;
+          return InstagramMessageService.sendText(senderId, promptText);
         } else {
-          const qtyOptions = await QuickReplyBuilderService.buildQuantityOptions(shortCode, undefined, matchedColor);
-          const promptText = `Renk olarak ${matchedColor} seçtiniz. Kaç adet almak istersiniz?`;
-          return InstagramMessageService.sendButtonsOrQuickReplies(senderId, promptText, qtyOptions);
+          const promptText = `Renk olarak ${matchedColor} seçtiniz. Kaç adet almak istediğinizi yazınız:`;
+          return InstagramMessageService.sendText(senderId, promptText);
         }
       }
 
@@ -280,8 +278,8 @@ export class WebhookController {
         stateData.productPrice = matchedProduct.price;
 
         const confirmOptions = QuickReplyBuilderService.buildCartConfirmOptions();
-        const promptText = `${qty} adet ${matchedProduct.name} (${size || 'Standart'} Beden) sepete eklemek istiyor musunuz?`;
-        return InstagramMessageService.sendButtonsOrQuickReplies(senderId, promptText, confirmOptions);
+        const promptText = `${qty} adet ${matchedProduct.name} (${size || 'Standart'} Beden) sepete eklenmeye hazır.`;
+        return InstagramMessageService.sendQuickReplies(senderId, promptText, confirmOptions);
       }
 
       // ─────────────────────────────────────────────
@@ -305,7 +303,7 @@ export class WebhookController {
 
         const checkoutOptions = QuickReplyBuilderService.buildCheckoutOptions();
         const promptText = `${cartRes.message}\n\nSepetiniz güncellendi. Siparişinizi tamamlamak ister misiniz?`;
-        return InstagramMessageService.sendButtonsOrQuickReplies(senderId, promptText, checkoutOptions);
+        return InstagramMessageService.sendQuickReplies(senderId, promptText, checkoutOptions);
       }
 
       // ─────────────────────────────────────────────
@@ -352,11 +350,9 @@ export class WebhookController {
         logInteractive('CANCEL_CHECKOUT');
         console.log(`[ConversationState] CANCEL_CHECKOUT received`);
         ConversationStateService.transition(stateKey, 'CANCEL');
-        const fallbackOptions = QuickReplyBuilderService.buildFallbackReplies();
-        return InstagramMessageService.sendButtonsOrQuickReplies(
+        return InstagramMessageService.sendText(
           senderId,
-          'İşlem iptal edildi. Size başka nasıl yardımcı olabilirim?',
-          fallbackOptions
+          'İşlem iptal edildi. Size başka nasıl yardımcı olabilirim?'
         );
       }
 
@@ -396,13 +392,9 @@ export class WebhookController {
         console.log(`[InstagramMessage] Button clicked: ADD_TO_CART for productCode="${productCode}", size="${size || 'otomatik'}"`);
 
         if (!productCode) {
-          return InstagramMessageService.sendQuickReplies(
+          return InstagramMessageService.sendText(
             senderId,
-            'Lütfen sepete eklemek istediğiniz ürünün adını veya kodunu yazınız. (Örn: KUMAŞ GÖMLEK S)',
-            [
-              { title: 'Ürünler', payload: 'PRODUCT_LIST' },
-              { title: 'Destek', payload: 'HUMAN_SUPPORT' }
-            ]
+            'Lütfen sepete eklemek istediğiniz ürünün adını veya kodunu yazınız. (Örn: KUMAŞ GÖMLEK S)'
           );
         }
 
@@ -419,13 +411,9 @@ export class WebhookController {
 
         if (!stockCheck.inStock || prodStock <= 0) {
           console.warn(`[InstagramMessage] Stock check failed for ${productCode}`);
-          return InstagramMessageService.sendQuickReplies(
+          return InstagramMessageService.sendText(
             senderId, 
-            `Üzgünüz, **${prodItem.name || productCode}** şu anda stokta tükenmiştir.`,
-            [
-              { title: 'Diğer Ürünler', payload: 'PRODUCT_LIST' },
-              { title: 'Destek', payload: 'HUMAN_SUPPORT' }
-            ]
+            `Üzgünüz, **${prodItem.name || productCode}** şu anda stokta tükenmiştir.`
           );
         }
 
@@ -434,14 +422,11 @@ export class WebhookController {
         const cartRes = await CartService.addItem(senderId, productCode, 1, size);
         console.log(`[InstagramMessage] Cart updated: ${cartRes.success}`);
 
+        const checkoutOptions = QuickReplyBuilderService.buildCheckoutOptions();
         return InstagramMessageService.sendQuickReplies(
           senderId,
-          `${cartRes.message}\n\nBaşka bir işlem yapmak ister misiniz?`,
-          [
-            { title: 'Sepetim', payload: 'MY_CART' },
-            { title: 'Ürünler', payload: 'PRODUCT_LIST' },
-            { title: 'Destek', payload: 'HUMAN_SUPPORT' }
-          ]
+          `${cartRes.message}\n\nSiparişinizi tamamlamak ister misiniz?`,
+          checkoutOptions
         );
       }
 
@@ -470,24 +455,7 @@ export class WebhookController {
         });
 
         const detailText = `**ÜRÜN DETAYI:**\n\n• **Ürün Adı:** ${item.name || productCode}\n• **Ürün Kodu:** ${item.productCode}\n• **Satış Fiyatı:** ${item.price} TL\n• **Beden Options:** ${item.size || 'S, M, L, XL'}\n• **Stok Durumu:** ${prod.inStock ? `Stokta Var (${item.stock} adet)` : 'Tükendi'}`;
-
-        const sizes = await StockService.getAvailableSizes(item.shortCode || item.productCode.split('-')[0]);
-
-        if (sizes.length > 0) {
-          const sizeOptions = await QuickReplyBuilderService.buildSizeOptions(item.shortCode || item.productCode.split('-')[0]);
-          return InstagramMessageService.sendButtonsOrQuickReplies(
-            senderId,
-            `${detailText}\n\nLütfen istediğiniz bedeni seçin:`,
-            sizeOptions
-          );
-        } else {
-          const qtyOptions = await QuickReplyBuilderService.buildQuantityOptions(item.shortCode || item.productCode.split('-')[0]);
-          return InstagramMessageService.sendButtonsOrQuickReplies(
-            senderId,
-            `${detailText}\n\nKaç adet istersiniz?`,
-            qtyOptions
-          );
-        }
+        return InstagramMessageService.sendText(senderId, detailText);
       }
 
       // 10. ACTION: PRODUCT_LIST (Ürün Kataloğunu Carousel Olarak Gönder)
@@ -519,13 +487,9 @@ export class WebhookController {
         console.log(`[InstagramMessage] Showing cart to ${senderId}`);
         const cart = CartService.getCart(senderId);
         if (!cart || cart.length === 0) {
-          return InstagramMessageService.sendQuickReplies(
+          return InstagramMessageService.sendText(
             senderId,
-            'Sepetiniz şu anda boş. Hemen ürünlerimizi inceleyebilirsiniz!',
-            [
-              { title: 'Ürün Kataloğu', payload: 'PRODUCT_LIST' },
-              { title: 'Destek', payload: 'HUMAN_SUPPORT' }
-            ]
+            'Sepetiniz şu anda boş. Hemen ürünlerimizi inceleyebilirsiniz!'
           );
         }
 
@@ -538,13 +502,11 @@ export class WebhookController {
 
         const cartText = `**SEPETİNİZ:**\n\n${cartListStr}\n\n**Toplam Tutar:** ${total} TL`;
 
-        return InstagramMessageService.sendButtonMessage(
+        const checkoutOptions = QuickReplyBuilderService.buildCheckoutOptions();
+        return InstagramMessageService.sendQuickReplies(
           senderId,
           cartText,
-          [
-            { title: 'Sipariş Ver', payload: 'CHECKOUT_CONFIRM' },
-            { title: 'Ürün Ekle', payload: 'PRODUCT_LIST' }
-          ]
+          checkoutOptions
         );
       }
 
@@ -556,13 +518,9 @@ export class WebhookController {
         const userOrders = allOrders.filter(o => o.senderId === senderId);
 
         if (userOrders.length === 0) {
-          return InstagramMessageService.sendQuickReplies(
+          return InstagramMessageService.sendText(
             senderId,
-            'Henüz kayıtlı bir siparişiniz bulunmuyor.',
-            [
-              { title: 'Ürünler', payload: 'PRODUCT_LIST' },
-              { title: 'Destek', payload: 'HUMAN_SUPPORT' }
-            ]
+            'Henüz kayıtlı bir siparişiniz bulunmuyor.'
           );
         }
 
@@ -570,13 +528,9 @@ export class WebhookController {
           `${idx + 1}. **Sipariş No:** ${o.orderId}\n   • Ürün: ${o.productName} (${o.quantity} Adet)\n   • Tutar: ${o.totalPrice} TL | Durum: ${o.status}`
         ).join('\n\n');
 
-        return InstagramMessageService.sendQuickReplies(
+        return InstagramMessageService.sendText(
           senderId,
-          `**SON SİPARİŞLERİNİZ:**\n\n${ordersStr}`,
-          [
-            { title: 'Ürünler', payload: 'PRODUCT_LIST' },
-            { title: 'Destek', payload: 'HUMAN_SUPPORT' }
-          ]
+          `**SON SİPARİŞLERİNİZ:**\n\n${ordersStr}`
         );
       }
 

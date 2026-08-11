@@ -255,17 +255,11 @@ class InstagramMessageService {
         }
     }
     /**
-     * 6. Standart Ana Menü Quick Replies Gönderir
+     * 6. Standart Ana Menü Metni Gönderir
      */
     static async sendMainMenu(recipientId, customText) {
         const text = customText || 'Müşteri hizmetlerine hoş geldiniz! Size nasıl yardımcı olabilirim?';
-        const replies = [
-            { title: 'Ürünler', payload: 'PRODUCT_LIST' },
-            { title: 'Sepetim', payload: 'MY_CART' },
-            { title: 'Siparişlerim', payload: 'MY_ORDERS' },
-            { title: 'Destek', payload: 'HUMAN_SUPPORT' }
-        ];
-        return this.sendQuickReplies(recipientId, text, replies);
+        return this.sendText(recipientId, text);
     }
 }
 exports.InstagramMessageService = InstagramMessageService;

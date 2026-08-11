@@ -156,106 +156,59 @@ class QuickReplyBuilderService {
         return options;
     }
     /**
-     * AI metnini analiz ederek beden, adet veya sepet tamamlama sorusu varsa otomatik DB butonlarını üretir.
+     * AI metnini analiz ederek yalnızca Siparişi Tamamla durumu varsa tek butonu üretir.
      */
     static async autoDetectOptions(replyText, shortCode, selectedSize, selectedColor) {
         const lower = (replyText || '').toLowerCase();
-        // 1. Beden sorma tespiti ("hangi beden", "bedeninizi", "beden seçin")
-        if (lower.includes('beden') || lower.includes('size')) {
-            if (shortCode) {
-                const sizeOpts = await this.buildSizeOptions(shortCode);
-                if (sizeOpts.length > 0)
-                    return sizeOpts;
-            }
-        }
-        // 2. Adet sorma tespiti ("kaç adet", "kaç tane", "adet belirt", "kaç adet istersiniz")
-        if (lower.includes('kaç adet') || lower.includes('kaç tane') || lower.includes('adet belirt') || lower.includes('kaç adet istersiniz')) {
-            if (shortCode) {
-                const qtyOpts = await this.buildQuantityOptions(shortCode, selectedSize, selectedColor);
-                if (qtyOpts.length > 0)
-                    return qtyOpts;
-            }
-        }
-        // 3. Sepet / Sipariş Tamamlama veya Başka ürün ekleme sorma tespiti
+        // Sadece siparişi tamamlama / sepet onayında tek "Siparişi Tamamla" butonu gösterilir
         if (lower.includes('siparişinizi tamamla') ||
-            lower.includes('sepete eklemek') ||
-            lower.includes('başka bir şey eklemek') ||
-            lower.includes('ürün eklemek') ||
+            lower.includes('siparişi tamamla') ||
             lower.includes('tamamlamak ister') ||
-            lower.includes('sepeti tamamla')) {
+            lower.includes('sepeti tamamla') ||
+            lower.includes('sipariş vermek ister')) {
             return this.buildCheckoutOptions();
         }
         return [];
     }
     /**
-     * Beden seçimi butonlarını (veya QR) DB varyantlarına göre oluşturur.
+     * Beden seçimi butonlarını DB varyantlarına göre oluşturur.
      */
     static async buildSizeOptions(shortCode) {
-        const sizes = await stock_service_1.StockService.getAvailableSizes(shortCode);
-        return sizes.map(size => ({
-            title: size,
-            payload: `SELECT_SIZE:${shortCode}:${size}`,
-            type: 'SIZE',
-            value: size
-        }));
+        return [];
     }
     /**
-     * Renk seçimi butonlarını (veya QR) DB varyantlarına göre oluşturur.
+     * Renk seçimi butonlarını DB varyantlarına göre oluşturur.
      */
     static async buildColorOptions(shortCode) {
-        const colors = await stock_service_1.StockService.getAvailableColors(shortCode);
-        return colors.map(color => ({
-            title: color,
-            payload: `SELECT_COLOR:${shortCode}:${color}`,
-            type: 'COLOR',
-            value: color
-        }));
+        return [];
     }
     /**
      * Adet seçimi butonlarını DB stok durumuna göre oluşturur.
      */
     static async buildQuantityOptions(shortCode, size, color) {
-        const stock = await stock_service_1.StockService.getStockForSizeColor(shortCode, size, color);
-        const maxQty = Math.min(stock, 5); // Max 5 adet seçeneği sunulur
-        const options = [];
-        for (let i = 1; i <= maxQty; i++) {
-            options.push({
-                title: String(i),
-                payload: `SELECT_QUANTITY:${shortCode}:${size || 'NONE'}:${i}`,
-                type: 'QUANTITY',
-                value: String(i)
-            });
-        }
-        return options;
+        return [];
     }
     /**
-     * Sepet ekleme onayı butonlarını oluşturur.
+     * Sepet ekleme onayı butonlarını oluşturur (Yalnızca Siparişi Tamamla).
      */
     static buildCartConfirmOptions() {
         return [
-            { title: '🛒 Sepete Ekle', payload: 'CONFIRM_ADD_TO_CART', type: 'CONFIRM' },
-            { title: '❌ Vazgeç', payload: 'CANCEL_CHECKOUT', type: 'CANCEL' }
+            { title: 'Siparişi Tamamla', payload: 'CHECKOUT_CONFIRM', type: 'CONFIRM' }
         ];
     }
     /**
-     * Checkout onayı butonlarını oluşturur.
+     * Checkout onayı butonlarını oluşturur (Yalnızca Siparişi Tamamla).
      */
     static buildCheckoutOptions() {
         return [
-            { title: '✅ Tamamla', payload: 'CHECKOUT_CONFIRM', type: 'CONFIRM' },
-            { title: '➕ Ürün ekle', payload: 'ADD_MORE_PRODUCTS', type: 'ADD_PRODUCT' },
-            { title: '❌ Vazgeç', payload: 'CANCEL_CHECKOUT', type: 'CANCEL' }
+            { title: 'Siparişi Tamamla', payload: 'CHECKOUT_CONFIRM', type: 'CONFIRM' }
         ];
     }
     /**
-     * Statik fallback butonları oluşturur.
+     * Statik fallback butonları kaldırıldı.
      */
     static buildFallbackReplies() {
-        return [
-            { title: 'Ürün Kataloğu', payload: 'PRODUCT_LIST', type: 'PRODUCT_LIST' },
-            { title: 'Sepetim', payload: 'MY_CART', type: 'VIEW_CART' },
-            { title: 'Destek', payload: 'HUMAN_SUPPORT', type: 'HUMAN_SUPPORT' }
-        ];
+        return [];
     }
     /**
      * SUGGESTED_TEXT payload'ını çözümler.
