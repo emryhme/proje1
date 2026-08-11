@@ -58,16 +58,24 @@ class StockService {
             if (shortMatch) {
                 const shortCode = shortMatch.shortCode.toUpperCase();
                 const shortMatches = rows.filter(r => r.shortCode.toUpperCase() === shortCode);
-                const hasStock = shortMatches.some(r => r.stock > 0);
-                const availableSizes = shortMatches.filter(r => r.stock > 0).map(r => r.size);
+                const inStockMatches = shortMatches.filter(r => r.stock > 0);
+                const hasStock = inStockMatches.length > 0;
+                const availableSizes = inStockMatches.map(r => r.size);
+                const selectedRow = inStockMatches[0] || shortMatches[0];
+                const totalStock = shortMatches.reduce((sum, r) => sum + (r.stock || 0), 0);
                 return {
                     exists: true,
                     inStock: hasStock,
                     product: {
-                        productCode: shortCode,
-                        name: shortMatch.name,
-                        availableSizes,
-                        stock: hasStock ? 1 : 0
+                        shortCode: selectedRow.shortCode,
+                        productCode: selectedRow.productCode,
+                        name: selectedRow.name,
+                        color: selectedRow.color,
+                        size: selectedRow.size,
+                        price: selectedRow.price,
+                        stock: totalStock,
+                        category: selectedRow.category,
+                        availableSizes
                     }
                 };
             }
