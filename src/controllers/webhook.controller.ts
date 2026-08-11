@@ -39,17 +39,15 @@ export class WebhookController {
 
     console.log(`[WebhookController] 🔍 Webhook Doğrulama İsteği Geldi: mode=${mode}, token=${token}`);
 
-    const expectedToken = env.fbVerifyToken || 'iscworks_verify_token_2026';
-    const isTokenMatch = token === expectedToken || token === 'iscworks_verify_token_2026' || token === 'iscworks';
+    if (!env.fbVerifyToken) {
+      console.warn('⚠️ [WebhookController] DİKKAT: env.fbVerifyToken .env dosyasında tanımlanmamış!');
+    }
 
-    if (mode === 'subscribe' && isTokenMatch) {
+    if (mode === 'subscribe' && env.fbVerifyToken && token === env.fbVerifyToken) {
       console.log('[WebhookController] ✅ Webhook Doğrulaması Başarılı!');
       res.status(200).send(challenge);
-    } else if (challenge) {
-      console.log('[WebhookController] ⚠️ Token eşleşmesi esnek modda doğrulandı.');
-      res.status(200).send(challenge);
     } else {
-      console.warn(`[WebhookController] ❌ Webhook Doğrulama Başarısız! Beklenen Token: "${expectedToken}", Gelen Token: "${token}"`);
+      console.warn(`[WebhookController] ❌ Webhook Doğrulama Başarısız! Beklenen Token: "${env.fbVerifyToken}", Gelen Token: "${token}"`);
       res.sendStatus(403);
     }
   }

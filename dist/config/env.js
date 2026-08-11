@@ -9,7 +9,7 @@ const path_1 = __importDefault(require("path"));
 dotenv_1.default.config({ path: path_1.default.join(__dirname, '../../.env') });
 exports.env = {
     port: parseInt(process.env.PORT || '3000', 10),
-    fbVerifyToken: process.env.FB_VERIFY_TOKEN || 'demo_secure_verify_token_2026',
+    fbVerifyToken: process.env.FB_VERIFY_TOKEN || '',
     fbPageAccessToken: process.env.FB_PAGE_ACCESS_TOKEN || '',
     fbApiVersion: process.env.FB_API_VERSION || 'v21.0',
     instagramAccountId: process.env.INSTAGRAM_ACCOUNT_ID || '',
