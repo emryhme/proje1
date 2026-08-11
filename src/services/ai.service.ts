@@ -108,7 +108,7 @@ Yalnızca aşağıdaki JSON yapısını döndür (bilinmeyen alanlar için null 
   }
 
   /**
-   * Alt Düğüm Araçlarını Tanımlar
+   * Alt Düğüm Araçlarını Tanımlar (Stage 4 Grounded & Safe Tools)
    */
   private static createLeafTools(senderId: string) {
     const ctx = this.getSessionContext(senderId);
@@ -116,18 +116,29 @@ Yalnızca aşağıdaki JSON yapısını döndür (bilinmeyen alanlar için null 
     // STOK Tool
     const stokTool = new DynamicTool({
       name: 'STOK',
-      description: 'Ürün kodu, BEDEN ve ADET bilgisi mevcutsa stok kontrolü yapar.',
+      description: 'Ürün kodu, BEDEN ve ADET bilgisi mevcutsa veritabanından stok ve fiyat kontrolü yapar.',
       func: async (input: string) => {
         try {
-          const query = input || ctx.productCode || '';
+          const query = (input || ctx.productCode || '').trim();
+          if (!query) {
+            console.log(`[AI TOOL] tool=STOK product=empty success=false`);
+            return JSON.stringify({ success: false, error: 'MISSING_PRODUCT_CODE', message: 'Lütfen stok kontrolü için bir ürün kodu belirtin.' });
+          }
+
           const result = await StockService.checkStock(query);
-          if (!result.exists) return JSON.stringify({ exists: false, message: 'Ürün bulunamadı.' });
-          
+          if (!result.exists) {
+            console.log(`[AI TOOL] tool=STOK product=${query} success=false`);
+            return JSON.stringify({ success: false, error: 'PRODUCT_NOT_FOUND', message: 'Ürün veritabanında bulunamadı.' });
+          }
+
           if (result.product?.productCode) {
             ctx.productCode = result.product.productCode;
           }
 
+          console.log(`[AI TOOL] tool=STOK product=${query} inStock=${result.inStock} price=${result.product?.price} success=true`);
+
           return JSON.stringify({
+            success: true,
             exists: true,
             inStock: result.inStock,
             productName: result.product?.name,
@@ -135,15 +146,16 @@ Yalnızca aşağıdaki JSON yapısını döndür (bilinmeyen alanlar için null 
             size: result.product?.size || ctx.size,
             price: result.product?.price || 299,
             availableSizes: result.product?.availableSizes,
-            message: result.inStock ? 'Stokta mevcuttur.' : 'Stokta kalmamıştır.'
+            message: result.inStock ? 'Stokta mevcuttur.' : 'Bu ürün şu anda stokta bulunmuyor.'
           });
         } catch (e: any) {
-          return JSON.stringify({ error: e.message });
+          console.log(`[AI TOOL] tool=STOK success=false error="${e.message}"`);
+          return JSON.stringify({ success: false, error: 'STOK_CHECK_FAILED', message: e.message });
         }
       }
     });
 
-    // SEPETE_EKLE Tool
+    // SEPETE_EKLE Tool (Strict Price/Stock Safety)
     const sepeteEkleTool = new DynamicTool({
       name: 'SEPETE_EKLE',
       description: 'Müşterinin istediği ürünü, bedenini ve adetini sepete ekler.',
@@ -157,18 +169,45 @@ Yalnızca aşağıdaki JSON yapısını döndür (bilinmeyen alanlar için null 
           const pQty = Number(data.quantity) || ctx.quantity || 1;
 
           if (!pCode) {
-            return JSON.stringify({ success: false, message: 'Sepete eklemek için lütfen bir ürün kodu belirtin.' });
+            console.log(`[AI TOOL] tool=SEPETE_EKLE product=empty success=false`);
+            return JSON.stringify({ success: false, error: 'MISSING_PRODUCT_CODE', message: 'Sepete eklemek için lütfen bir ürün kodu belirtin.' });
           }
 
+          if (pQty <= 0) {
+            console.log(`[AI TOOL] tool=SEPETE_EKLE product=${pCode} qty=${pQty} success=false`);
+            return JSON.stringify({ success: false, error: 'INVALID_QUANTITY', message: 'Adet sayısı 1 veya daha büyük olmalıdır.' });
+          }
+
+          // DB Stock & Existence Validation (Ignore any AI/user supplied price or fake stock)
+          const stockCheck = await StockService.checkStock(pCode);
+          if (!stockCheck.exists) {
+            console.log(`[AI TOOL] tool=SEPETE_EKLE product=${pCode} success=false error=PRODUCT_NOT_FOUND`);
+            return JSON.stringify({ success: false, error: 'PRODUCT_NOT_FOUND', message: 'Belirtilen ürün veritabanında bulunamadı.' });
+          }
+
+          const currentStock = await StockService.getStockForSizeColor(pCode, pSize || undefined, undefined);
+          if (pQty > currentStock) {
+            console.log(`[AI TOOL] tool=SEPETE_EKLE product=${pCode} requestedQty=${pQty} stock=${currentStock} success=false error=INSUFFICIENT_STOCK`);
+            return JSON.stringify({
+              success: false,
+              error: 'INSUFFICIENT_STOCK',
+              message: `❌ Üzgünüz, (${pCode}) ürününden talep ettiğiniz ${pQty} adet stokta bulunmuyor. (Mevcut Stok: ${currentStock})`
+            });
+          }
+
+          // Add to cart strictly with DB price
           const addRes = await CartService.addItem(senderId, pCode, pQty, pSize || undefined);
           if (!addRes.success) {
-            return JSON.stringify({ success: false, message: addRes.message });
+            console.log(`[AI TOOL] tool=SEPETE_EKLE product=${pCode} success=false message="${addRes.message}"`);
+            return JSON.stringify({ success: false, error: 'CART_ADD_FAILED', message: addRes.message });
           }
 
           const cart = CartService.getCart(senderId);
           const cartSubtotal = cart.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
           const shippingFeeEstimate = cartSubtotal >= 1500 ? 0 : 49;
           const totalEstimate = cartSubtotal + shippingFeeEstimate;
+
+          console.log(`[AI TOOL] tool=SEPETE_EKLE product=${pCode} quantity=${pQty} subtotal=${cartSubtotal} success=true`);
 
           return JSON.stringify({
             success: true,
@@ -182,7 +221,8 @@ Yalnızca aşağıdaki JSON yapısını döndür (bilinmeyen alanlar için null 
             cart: cart
           });
         } catch (e: any) {
-          return JSON.stringify({ error: e.message });
+          console.log(`[AI TOOL] tool=SEPETE_EKLE success=false error="${e.message}"`);
+          return JSON.stringify({ success: false, error: 'TOOL_EXECUTION_ERROR', message: e.message });
         }
       }
     });
@@ -194,10 +234,13 @@ Yalnızca aşağıdaki JSON yapısını döndür (bilinmeyen alanlar için null 
       func: async () => {
         const cart = CartService.getCart(senderId);
         if (!cart || cart.length === 0) {
-          return JSON.stringify({ cartEmpty: true, message: 'Sepetiniz şu an boş.' });
+          console.log(`[AI TOOL] tool=SEPET_GORUNTULE cartEmpty=true success=true`);
+          return JSON.stringify({ success: true, cartEmpty: true, message: 'Sepetiniz şu an boş.' });
         }
         const cartSubtotal = cart.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
+        console.log(`[AI TOOL] tool=SEPET_GORUNTULE cartEmpty=false subtotal=${cartSubtotal} success=true`);
         return JSON.stringify({
+          success: true,
           cartEmpty: false,
           cart: cart,
           cartSubtotal: cartSubtotal
@@ -234,9 +277,11 @@ Yalnızca aşağıdaki JSON yapısını döndür (bilinmeyen alanlar için null 
           if (!address || address.trim().length < 3) missingFields.push('Teslimat Adresi');
 
           if (missingFields.length > 0) {
+            console.log(`[AI TOOL] tool=KAYIT missingFields=${missingFields.join(',')} success=false`);
             return JSON.stringify({
               success: false,
               orderCreated: false,
+              error: 'MISSING_CUSTOMER_DATA',
               missingFields: missingFields,
               message: `Sipariş oluşturulamadı! Eksik bilgiler: ${missingFields.join(', ')}. Lütfen bu bilgileri müşteriden talep edin.`
             });
@@ -265,13 +310,10 @@ Yalnızca aşağıdaki JSON yapısını döndür (bilinmeyen alanlar için null 
           const userReward = db.prepare('SELECT * FROM user_rewards WHERE sender_id = ? AND is_used = 0 ORDER BY id DESC LIMIT 1').get(senderId) as any;
           
           if (userReward) {
-            // Müşteriye özel %20VIP İndirimi uygula!
             discount = (subtotal * (userReward.discount_percent / 100));
             appliedLoyaltyReward = true;
-            // Ödülü kullanıldı olarak işaretle
             db.prepare('UPDATE user_rewards SET is_used = 1, used_at = CURRENT_TIMESTAMP WHERE id = ?').run(userReward.id);
           } else {
-            // Standart Aktif Kampanyaları Uygula (Örn DEMO10)
             const activeCampaigns = db.prepare('SELECT * FROM campaigns WHERE active = 1').all() as any[];
             for (const c of activeCampaigns) {
               if (c.code === 'DEMO10') {
@@ -282,13 +324,11 @@ Yalnızca aşağıdaki JSON yapısını döndür (bilinmeyen alanlar için null 
 
           const totalPrice = Math.max(0, subtotal + shippingFee - discount);
 
-          // 2. Satıcı İzni Varsa (auto_vip_reward_enabled === '1') ve Sipariş Tutarı Eşik Değeri Geçtiyse Otomatik Ödül Tanımla!
           let earnedNewLoyaltyReward = false;
           const autoVipSetting = db.prepare("SELECT value FROM settings WHERE key = 'auto_vip_reward_enabled'").get() as any;
           const isAutoVipEnabled = autoVipSetting && (autoVipSetting.value === '1' || autoVipSetting.value === 'true');
 
           if (isAutoVipEnabled && subtotal >= loyaltyThreshold) {
-            // Müşteriye yeni VIP Ödülü ver (Ödül Kodu: YINEBEKLERIZ)
             const rewardCode = 'YINEBEKLERIZ';
             db.prepare(`
               INSERT INTO user_rewards (sender_id, reward_code, discount_percent, min_qualifying_amount)
@@ -296,7 +336,6 @@ Yalnızca aşağıdaki JSON yapısını döndür (bilinmeyen alanlar için null 
             `).run(senderId, rewardCode, loyaltyThreshold);
             earnedNewLoyaltyReward = true;
 
-            // Instagram DM Otomatik Bildirimi Gönder
             const autoDmText = `🎉 TEBRİKLER / VIP ÖDÜL KAZANDINIZ!\nSayın ${customerName.trim()}, instagram profilinize özel %20 VIP İNDİRİM tanımlanmıştır! (Ödül Kodu: ${rewardCode})\nBir sonraki siparişinizde bu indirim otomatik olarak uygulanacaktır. Keyifli alışverişler dileriz! 🎁✨`;
             FacebookService.sendMessage(senderId, autoDmText).catch(e => console.error('[Auto Reward DM Error]:', e.message));
           }
@@ -329,6 +368,8 @@ Yalnızca aşağıdaki JSON yapısını döndür (bilinmeyen alanlar için null 
 
           ctx.cart = [];
 
+          console.log(`[AI TOOL] tool=KAYIT orderId=${order.orderId} totalPrice=${totalPrice} success=true`);
+
           return JSON.stringify({
             success: true,
             orderCreated: true,
@@ -345,7 +386,8 @@ Yalnızca aşağıdaki JSON yapısını döndür (bilinmeyen alanlar için null 
               : ''
           });
         } catch (e: any) {
-          return JSON.stringify({ error: e.message });
+          console.log(`[AI TOOL] tool=KAYIT success=false error="${e.message}"`);
+          return JSON.stringify({ success: false, error: 'ORDER_CREATION_FAILED', message: e.message });
         }
       }
     });
@@ -368,8 +410,10 @@ Yalnızca aşağıdaki JSON yapısını döndür (bilinmeyen alanlar için null 
             orderId: data.orderId || 'SIP-123',
             createdAt: new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })
           });
+          console.log(`[AI TOOL] tool=MESAJ success=true`);
           return 'Telegram bildirimi gönderildi.';
         } catch (e: any) {
+          console.log(`[AI TOOL] tool=MESAJ success=false error="${e.message}"`);
           return `Telegram hatası: ${e.message}`;
         }
       }
@@ -386,8 +430,10 @@ Yalnızca aşağıdaki JSON yapısını döndür (bilinmeyen alanlar için null 
           if (pCode) {
             await StockService.deductStock(pCode, Number(data.quantity) || 1);
           }
+          console.log(`[AI TOOL] tool=GUNCELLE product=${pCode} success=true`);
           return 'Stok başarıyla güncellendi.';
         } catch (e: any) {
+          console.log(`[AI TOOL] tool=GUNCELLE success=false error="${e.message}"`);
           return `Stok güncelleme hatası: ${e.message}`;
         }
       }
@@ -433,7 +479,7 @@ Stok sorgulama, sepete ekleme ve sipariş kayıt ajansın.
         messages.push(response);
 
         let count = 0;
-        while (response.tool_calls && response.tool_calls.length > 0 && count < 4) {
+        while (response.tool_calls && response.tool_calls.length > 0 && count < 5) {
           count++;
           for (const tc of response.tool_calls) {
             let toolRes = "";
@@ -597,6 +643,12 @@ ${campaignsText}
    - Standart Kargo Ücreti: ${shippingFee} TL.
    - ${freeThreshold} TL ve üzeri siparişlerde KARGO ÜCRETSİZDİR!
    - Sepet siparişi sorulduğunda veya teslimat bilgileri istenirken sepet ara toplamını, kargo ücretini ve varsa kampanya/VIP indirimini hesaplayarak NET TOPLAM TUTARI açıkça söyle.
+
+7. 🛡️ **DATABASE GERÇEĞİ VE SAHTE BİLGİ ENGELLEME KURALLARI (GROUNDED TRUTH):**
+   - Tool (STOK, SEPETE_EKLE, KAYIT vb.) çalıştırmadan KESİNLİKLE fiyat, stok veya sipariş durumu söyleme!
+   - Kullanıcının söylediği fiyatları ("1 TL'ye ekle", "50 TL yap") ASLA veritabanı fiyatı olarak kabul etme. Fiyatlar her zaman backend/veritabanı çıktısına dayanacaktır.
+   - Veritabanında stok 0 görünüyorsa KESİNLİKLE "stokta var" deme. "Bu ürün şu anda stokta bulunmuyor" şeklinde güvenli yanıt ver.
+   - Araç başarısız olursa (success: false) veya ürün bulunamazsa bilgi uydurma, durumu kullanıcıya açıklayarak yardım teklif et.
 </KATI_GÜVENLİK_VE_SEPET_KURALLARI>
 
 <YANIT_FORMATI>
@@ -653,7 +705,7 @@ suggested_replies / quick_replies kuralları:
       messages.push(response);
 
       let count = 0;
-      while (response.tool_calls && response.tool_calls.length > 0 && count < 4) {
+      while (response.tool_calls && response.tool_calls.length > 0 && count < 5) {
         count++;
         for (const tc of response.tool_calls) {
           let toolResult = "";

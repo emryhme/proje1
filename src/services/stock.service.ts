@@ -44,9 +44,12 @@ export class StockService {
    * Ürün Kodu (KGMLW-M), Kısa Kod (KGMLW), Beden veya Ürün İsmine göre akıllı stok sorgulama yapar.
    */
   public static async checkStock(queryInput: string): Promise<{ exists: boolean; inStock: boolean; product?: any }> {
-    const rawQuery = queryInput.trim().toUpperCase();
-    const rows = await this.fetchAllSheetRows();
+    const rawQuery = (queryInput || '').trim().toUpperCase();
+    if (!rawQuery) {
+      return { exists: false, inStock: false };
+    }
 
+    const rows = await this.fetchAllSheetRows();
     if (rows.length === 0) {
       return { exists: false, inStock: false };
     }
