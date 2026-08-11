@@ -184,14 +184,15 @@ export class WebhookController {
         console.log(`[ConversationState] SELECT_SIZE postback: shortCode=${shortCode}, size=${size}`);
 
         const availableSizes = await StockService.getAvailableSizes(shortCode);
-        if (!availableSizes.includes(size)) {
+        const matchedSize = availableSizes.find(s => s.trim().toUpperCase() === size.trim().toUpperCase());
+        if (!matchedSize) {
           console.warn(`[ConversationState] Invalid size selected: ${size} for ${shortCode}`);
           return InstagramMessageService.sendText(senderId, `Üzgünüz, seçtiğiniz beden (${size}) mevcut değil.`);
         }
 
-        ConversationStateService.transition(stateKey, 'SIZE_SELECTED', size);
-        const qtyOptions = await QuickReplyBuilderService.buildQuantityOptions(shortCode, size);
-        const promptText = `Beden olarak ${size} seçtiniz. Kaç adet almak istersiniz?`;
+        ConversationStateService.transition(stateKey, 'SIZE_SELECTED', matchedSize);
+        const qtyOptions = await QuickReplyBuilderService.buildQuantityOptions(shortCode, matchedSize);
+        const promptText = `Beden olarak ${matchedSize} seçtiniz. Kaç adet almak istersiniz?`;
         return InstagramMessageService.sendButtonsOrQuickReplies(senderId, promptText, qtyOptions);
       }
 
@@ -201,24 +202,25 @@ export class WebhookController {
       if (rawAction.startsWith('SELECT_COLOR:')) {
         const parts = rawAction.split(':');
         const shortCode = (parts[1] || '').trim().toUpperCase();
-        const color = (parts[2] || '').trim().toUpperCase();
+        const color = (parts[2] || '').trim();
         console.log(`[ConversationState] SELECT_COLOR postback: shortCode=${shortCode}, color=${color}`);
 
         const availableColors = await StockService.getAvailableColors(shortCode);
-        if (!availableColors.includes(color)) {
+        const matchedColor = availableColors.find(c => c.trim().toUpperCase() === color.trim().toUpperCase());
+        if (!matchedColor) {
           console.warn(`[ConversationState] Invalid color selected: ${color} for ${shortCode}`);
           return InstagramMessageService.sendText(senderId, `Üzgünüz, seçtiğiniz renk (${color}) mevcut değil.`);
         }
 
-        ConversationStateService.transition(stateKey, 'COLOR_SELECTED', color);
+        ConversationStateService.transition(stateKey, 'COLOR_SELECTED', matchedColor);
         const availableSizes = await StockService.getAvailableSizes(shortCode);
         if (availableSizes.length > 0) {
           const sizeOptions = await QuickReplyBuilderService.buildSizeOptions(shortCode);
-          const promptText = `Renk olarak ${color} seçtiniz. Lütfen beden tercihinizi yapın:`;
+          const promptText = `Renk olarak ${matchedColor} seçtiniz. Lütfen beden tercihinizi yapın:`;
           return InstagramMessageService.sendButtonsOrQuickReplies(senderId, promptText, sizeOptions);
         } else {
-          const qtyOptions = await QuickReplyBuilderService.buildQuantityOptions(shortCode, undefined, color);
-          const promptText = `Renk olarak ${color} seçtiniz. Kaç adet almak istersiniz?`;
+          const qtyOptions = await QuickReplyBuilderService.buildQuantityOptions(shortCode, undefined, matchedColor);
+          const promptText = `Renk olarak ${matchedColor} seçtiniz. Kaç adet almak istersiniz?`;
           return InstagramMessageService.sendButtonsOrQuickReplies(senderId, promptText, qtyOptions);
         }
       }
