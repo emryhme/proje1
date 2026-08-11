@@ -272,12 +272,29 @@ class WebhookController {
                 if (cart.length === 0) {
                     return instagram_message_service_1.InstagramMessageService.sendText(senderId, 'Sepetiniz şu anda boş.');
                 }
+                // Teslimat Bilgileri Doğrulaması (Ad-Soyad, Telefon, Adres şart!)
+                const hasName = ctx.customerName && ctx.customerName !== 'Musteri' && ctx.customerName.trim().length > 1;
+                const hasPhone = ctx.customerPhone && ctx.customerPhone !== '05000000000' && ctx.customerPhone.trim().length >= 7;
+                const hasAddress = ctx.address && ctx.address !== 'Instagram DM' && ctx.address.trim().length > 3;
+                if (!hasName || !hasPhone || !hasAddress) {
+                    const missingFields = [];
+                    if (!hasName)
+                        missingFields.push('Ad Soyad');
+                    if (!hasPhone)
+                        missingFields.push('Telefon Numarası');
+                    if (!hasAddress)
+                        missingFields.push('Teslimat Adresi');
+                    const cartSubtotal = cart.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
+                    const cartSummary = cart.map(i => `• ${i.productName} (${i.size || 'Standart'}) x${i.quantity} Adet - ${i.unitPrice * i.quantity} TL`).join('\n');
+                    console.warn(`[WebhookController] CHECKOUT_CONFIRM blocked for ${senderId}. Missing: ${missingFields.join(', ')}`);
+                    return instagram_message_service_1.InstagramMessageService.sendText(senderId, `🛒 **SEPET ÖZETİNİZ:**\n${cartSummary}\n\n💰 **Toplam Tutar:** ${cartSubtotal} TL\n\n⚠️ Siparişinizi tamamlayabilmemiz için lütfen **${missingFields.join(', ')}** bilgilerinizi mesaj olarak yazınız.\n\n*(Örnek: Ahmet Yılmaz, 05321234567, Kadıköy / İstanbul)*`);
+                }
                 const orderId = `ORD-${Date.now()}`;
                 for (const item of cart) {
                     await order_service_1.OrderService.createOrder({
-                        customerName: ctx.customerName || 'Musteri',
-                        customerPhone: ctx.customerPhone || '05000000000',
-                        address: ctx.address || 'Instagram DM',
+                        customerName: ctx.customerName,
+                        customerPhone: ctx.customerPhone,
+                        address: ctx.address,
                         senderId,
                         productCode: item.productCode,
                         productName: item.productName,
@@ -290,7 +307,7 @@ class WebhookController {
                 }
                 cart_service_1.CartService.clearCart(senderId);
                 conversation_state_service_1.ConversationStateService.transition(stateKey, 'CHECKOUT_CONFIRM');
-                return instagram_message_service_1.InstagramMessageService.sendText(senderId, `✅ Siparişiniz başarıyla onaylanmıştır! Sipariş Numaranız: ${orderId}. Teşekkür ederiz.`);
+                return instagram_message_service_1.InstagramMessageService.sendText(senderId, `✅ **SİPARİŞİNİZ BAŞARIYLA ONAYLANDI!**\n\n• **Sipariş No:** ${orderId}\n• **Alıcı:** ${ctx.customerName}\n• **Telefon:** ${ctx.customerPhone}\n• **Teslimat Adresi:** ${ctx.address}\n\nTeşekkür ederiz! Siparişiniz hazırlanmak üzere işleme alınmıştır.`);
             }
             // ─────────────────────────────────────────────
             // 6. CANCEL_CHECKOUT Postback

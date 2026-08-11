@@ -237,6 +237,12 @@ async function runStage2VerificationSuite() {
     CartService.clearCart(testSender);
     await CartService.addItem(testSender, validSku, 1, 'M');
 
+    // Populate test customer info for validation
+    const ctx = (AIService as any).getSessionContext(testSender);
+    ctx.customerName = 'Ahmet Yilmaz';
+    ctx.customerPhone = '05321112233';
+    ctx.address = 'Kadikoy Istanbul';
+
     // CHECKOUT_COMPLETE (Alias for CHECKOUT_CONFIRM)
     await WebhookController.processEventOrReply(testSender, 'Tamamla', 'CHECKOUT_COMPLETE');
     const cartAfter = CartService.getCart(testSender);
@@ -291,6 +297,12 @@ async function runStage2VerificationSuite() {
     resetAiCounter();
     const dupUser = `DUP_USER_MOCK_${Date.now()}`;
     await CartService.addItem(dupUser, validSku, 1, 'M');
+
+    // Populate test customer info for validation
+    const dupCtx = (AIService as any).getSessionContext(dupUser);
+    dupCtx.customerName = 'Mehmet Demir';
+    dupCtx.customerPhone = '05332223344';
+    dupCtx.address = 'Besiktas Istanbul';
 
     // First click
     await WebhookController.processEventOrReply(dupUser, 'Tamamla', 'CHECKOUT_CONFIRM');
